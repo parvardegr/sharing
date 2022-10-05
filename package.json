@@ -2,7 +2,7 @@
   "name": "sharing",
   "version": "1.0.0",
   "description": "Sharing is a command-line tool to share directory and files with ios and android devices without an extra client app",
-  "main": "index.js",
+  "main": "bin/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
