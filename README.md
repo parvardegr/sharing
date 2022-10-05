@@ -1,4 +1,4 @@
-**Sharing** directory and files from cli to ios and android devices without need of an extra clien app
+**Sharing** directory and files from cli to ios and android devices without need of an extra client app
 
 ## Usage
 1. install
