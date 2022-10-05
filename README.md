@@ -1,4 +1,4 @@
-**Sharing** directory and files from cli to ios and android devices without need of an extra clien app
+**Sharing** directory and files from CLI to ios and android devices without the need for an extra client app
 
 ## Usage
 1. install
@@ -18,4 +18,4 @@
 ![Sharing screenshot](/doc/sharing-on-phone-screenshot.jpeg?raw=true "Browsing the shared directory")
 
 ## TODO
-- clip board copy (peyman idea)
+- clipboard copy (peyman idea)
