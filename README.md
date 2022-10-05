@@ -3,7 +3,7 @@
 
 ## Usage
 1. install
-    - `npm install -g sharing`
+    - `npm install -g easy-sharing`
 2. share a file or directory
     - `sharing /directory-or-file-to-share`
 3. scan the QR-Code with your phone

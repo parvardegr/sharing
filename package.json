@@ -1,5 +1,5 @@
 {
-  "name": "sharing",
+  "name": "easy-sharing",
   "version": "1.0.0",
   "description": "Sharing is a command-line tool to share directory and files with ios and android devices without an extra client app",
   "main": "bin/index.js",
