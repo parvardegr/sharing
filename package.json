@@ -1,0 +1,30 @@
+{
+  "name": "sharing",
+  "version": "1.0.0",
+  "description": "Sharing is a command-line tool to share directory and files with ios and android devices without an extra client app",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "file sharing",
+    "android",
+    "ios",
+    "mobile",
+    "cli sharing",
+    "directory sharing",
+    "file serving",
+    "directory serving",
+    "mobile file sharing"
+  ],
+  "bin": {
+    "sharing": "./bin/index.js"
+  },
+  "author": "amin rostami",
+  "license": "MIT",
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "serve": "^14.0.1",
+    "yargs": "^17.6.0"
+  }
+}
