@@ -5,7 +5,7 @@ const usage = "\nUsage: sharing <directory-path>";
 const options = yargs
         .usage(usage)  
         .option("p", { default: 7478, alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
-        .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })                                                                                             
+        .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
         .help(true)
         .argv;
 
@@ -55,24 +55,25 @@ var getNetworkAddress = () => {
 };
 
 server.listen(options.port, () => {
-    let usageMessage = 'Scan the QR-Code to access \''+ path +'\' directory on your phone';
+    let usageMessage = `Scan the QR-Code to access '${path}' directory on your phone`;
     let file = '';
     if (isFile) {
-        usageMessage = 'Scan the QR-Code to access \''+ fileName +'\' file on your phone';
+        usageMessage = `Scan the QR-Code to access '${fileName}' file on your phone`;
         file = '/' + fileName;
     }
 
     let shareAddress = undefined;
     if (options.ip) {
-        shareAddress = 'http://' + options.ip + ':' + options.port + file;
+        shareAddress = `http://${options.ip}:${options.port}${file}`;
     } else {
-        shareAddress = 'http://' + getNetworkAddress() + ':' + options.port + file;
+        shareAddress = `http://${getNetworkAddress()}:${options.port}${file}`;
     }
     
     console.log(usageMessage);
-
+    console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
+    
     var qrcode = require('qrcode-terminal');
     qrcode.generate(shareAddress, { small: true });
 
-    console.log('Press ctrl+c to stop sharing')
+    console.log('Press ctrl+c to stop sharing');
 });
