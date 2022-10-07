@@ -22,3 +22,4 @@
 
 ## TODO
 - clip board copy (peyman idea)
+- upload file from phone
