@@ -3,7 +3,7 @@
 **Share** directories and files from the CLI to iOS and Android devices without the need of an extra client app
 
 ## Usage
-*sharing is depend on node v16.x*
+*sharing is depend on node v16.x or later*
 1. Install
     - `npm install -g easy-sharing`
 2. Share a file or directory
@@ -21,5 +21,5 @@
 ![Sharing screenshot](/doc/sharing-on-phone-screenshot.jpeg?raw=true "Browsing the shared directory")
 
 ## TODO
-- clip board copy (peyman idea)
+- clipboard copy (peyman idea)
 - upload file from phone
