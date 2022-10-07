@@ -3,6 +3,7 @@
 **Share** directories and files from the CLI to iOS and Android devices without the need of an extra client app
 
 ## Usage
+*sharing is depend on node v16.x*
 1. Install
     - `npm install -g easy-sharing`
 2. Share a file or directory
