@@ -132,6 +132,7 @@ var getNetworkAddress = () => {
         app.listen(8000, function() {
           console.log('Scan the QR-Code to upload your file');
           qrcode.generate(uploadAddress, { small: true });
+          console.log(`Or enter the following address in a browser tab in your phone: ${uploadAddress}\n`);
         });
     }
 
