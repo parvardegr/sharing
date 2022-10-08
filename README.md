@@ -15,5 +15,14 @@
         - `sharing --ip your-public-ip-address /directory-or-file-to-share`
 4. Tada! Just browse the directory and download any file you want
 
+## Available Options:
+| Command           | Description                    | Defaults |
+|-------------------|--------------------------------|----------|
+| --version         | Show version number            |          |
+| -p or --port      | Change default port            | 7478     |
+| --ip              | Your machine public ip address | 0.0.0.0  |
+| -c or --clipboard | Share Clipboard                | false    |
+| --help            | Show help                      |          |
+
 ## TODO
 - upload file from phone
