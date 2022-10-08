@@ -32,7 +32,7 @@ var getNetworkAddress = () => {
 
     const options = yargs
         .usage("\nUsage: sharing <directory-or-file-path>")
-        .option("p", { alias: 'port', default: 7478, describe: "Change default port", demandOption: false })
+        .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
         .help(true)
@@ -103,14 +103,16 @@ var getNetworkAddress = () => {
         console.log('Press ctrl+c to stop sharing');
     }
 
-    server.listen(options.port, listener);
-
-    server.on('error', function (e) {
-        // Get available port between 7478 ~ 8000 if address is in use.
-        portfinder.getPort(function (err, port) {
-            options.port = port;
-            server.listen(port);
+    if (options.port)
+        server.listen(options.port, listener);
+    else {
+        portfinder.getPort({
+            port: 7478,    // start port
+            stopPort: 8000 // maximum port
+        }, (err, port) => {
+            console.log(port);
+            server.listen(port, listener);
         });
-    });
+    }
 
 })();
