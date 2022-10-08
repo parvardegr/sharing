@@ -92,7 +92,7 @@ var getNetworkAddress = () => {
         const shareAddress = options.ip? `http://${options.ip}:${options.port}${file}`: `http://${getNetworkAddress()}:${options.port}${file}`;
         
         console.log(usageMessage);
-        
+
         qrcode.generate(shareAddress, { small: true });
 
         if (!options.clipboard)
