@@ -86,7 +86,9 @@ var getNetworkAddress = () => {
         if (options.clipboard)
             usageMessage = 'Scan the QR-Code to access your Clipboard'
 
-        const shareAddress = options.ip? `http://${options.ip}:${options.port}${file}`: `http://${getNetworkAddress()}:${options.port}${file}`;
+        const time = new Date().getTime();
+        const urlInfo = `:${options.port}${file}?time=${time}`;
+        const shareAddress = options.ip? `http://${options.ip}${urlInfo}`: `http://${getNetworkAddress()}${urlInfo}`;
         
         console.log(usageMessage);
     
@@ -99,4 +101,3 @@ var getNetworkAddress = () => {
     });
 
 })();
-
