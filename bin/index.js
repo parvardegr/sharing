@@ -41,11 +41,11 @@ var getNetworkAddress = () => {
 
     let path = undefined;
     let fileName = undefined;
-    
+
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');
-
+        
         const data = clipboard.default.readSync();
         const filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
         if (fs.existsSync(filePath)) {
