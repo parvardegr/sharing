@@ -41,7 +41,7 @@ var getNetworkAddress = () => {
 
     let path = undefined;
     let fileName = undefined;
-
+    
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');
@@ -90,9 +90,9 @@ var getNetworkAddress = () => {
             usageMessage = 'Scan the QR-Code to access your Clipboard'
 
         const shareAddress = options.ip? `http://${options.ip}:${options.port}${file}`: `http://${getNetworkAddress()}:${options.port}${file}`;
-
+        
         console.log(usageMessage);
-
+        
         qrcode.generate(shareAddress, { small: true });
 
         if (!options.clipboard)
