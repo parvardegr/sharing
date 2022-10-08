@@ -16,5 +16,4 @@
 4. Tada! Just browse the directory and download any file you want
 
 ## TODO
-- clipboard copy (peyman idea)
 - upload file from phone
