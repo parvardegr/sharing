@@ -9,7 +9,8 @@ const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
-
+const express = require('express');
+const fileUpload = require('express-fileupload');
 
 // Usage
 const usage = `
@@ -52,7 +53,6 @@ var debugLog = (log) => {
 }
 
 
-
 // Main
 (async () => {
 
@@ -63,6 +63,7 @@ var debugLog = (log) => {
         .option("ip", { describe: "Your machine public ip address", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
         .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
+        .option("u", { alias: 'upload', describe: "Upload files", type: "boolean", demandOption: false })
         .help(true)
         .argv;
 
@@ -113,6 +114,66 @@ var debugLog = (log) => {
         let trailingSlash = (path.lastIndexOf("/") > -1) ? '/' : '\\';
         fileName = _path.basename(path);
         path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
+    }
+    
+    if (options.upload) {
+        const app = express();
+        const uploadAddress = options.ip? `http://${options.ip}:8000/form`: `http://${getNetworkAddress()}:8000/form`;
+
+        app.use(fileUpload());
+
+        app.get('/form', (req, res) => {
+            res.send(`
+                <!DOCTYPE html>
+                <html lang="en" dir="ltr">
+                    <head>
+                        <meta charset="utf-8">
+                        <title>upload</title>
+                        <meta name="viewport" content="width=device-width, initial-scale=1" />
+                    </head>
+                    <body>
+                        <form ref='uploadForm' 
+                          id='uploadForm' 
+                          action='/upload' 
+                          method='post' 
+                          encType="multipart/form-data">
+                            <input type="file" name="sampleFile" />
+                            <input type='submit' value='Upload!' />
+                        </form>
+                    </body>
+                </html>
+            `);
+        });
+
+        app.post('/upload', function(req, res) {
+            let sampleFile;
+            let uploadPath;
+
+            if (!req.files || Object.keys(req.files).length === 0) {
+                res.status(400).send('No files were uploaded.');
+                return;
+            }
+
+            sampleFile = req.files.sampleFile;
+
+            uploadPath = _path.resolve(__dirname, path) + '/' + sampleFile.name;
+
+            sampleFile.mv(uploadPath, function(err) {
+                if (err) {
+                    return res.status(500).send(err);
+                }
+
+                res.send(`
+                    <h1>file uploaded</h1>
+                    <a href="${uploadAddress}">upload again</a>
+                `);
+            });
+        });
+
+        app.listen(8000, function() {
+          console.log('Scan the QR-Code to upload your file');
+          qrcode.generate(uploadAddress, { small: true });
+        });
     }
 
     const server = http.createServer((request, response) => {
