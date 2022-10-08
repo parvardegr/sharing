@@ -8,7 +8,10 @@ const os = require('node:os');
 const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
+const portfinder = require('portfinder');
 
+portfinder.setBasePort(7478);
+portfinder.setHighestPort(8000);
 
 // Utils
 var getNetworkAddress = () => {
@@ -28,10 +31,10 @@ var getNetworkAddress = () => {
 (async () => {
 
     const options = yargs
-        .usage("\nUsage: sharing <directory-or-file-path>")  
+        .usage("\nUsage: sharing <directory-or-file-path>")
         .option("p", { alias: 'port', default: 7478, describe: "Change default port", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
-        .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })                                                                                             
+        .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
         .help(true)
         .argv;
 
@@ -42,7 +45,7 @@ var getNetworkAddress = () => {
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');
-        
+
         const data = clipboard.default.readSync();
         const filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
         if (fs.existsSync(filePath)) {
@@ -75,28 +78,37 @@ var getNetworkAddress = () => {
         return handler(request, response, { public: path });
     });
 
-    server.listen(options.port, () => {
+    const listener = () => {
         let usageMessage = `Scan the QR-Code to access '${path}' directory on your phone`;
         let file = '';
         if (fileName) {
             usageMessage = `Scan the QR-Code to access '${fileName}' file on your phone`;
             file = '/' + fileName;
         }
-    
+
         if (options.clipboard)
             usageMessage = 'Scan the QR-Code to access your Clipboard'
 
         const shareAddress = options.ip? `http://${options.ip}:${options.port}${file}`: `http://${getNetworkAddress()}:${options.port}${file}`;
-        
+
         console.log(usageMessage);
-    
+
         qrcode.generate(shareAddress, { small: true });
-    
+
         if (!options.clipboard)
             console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
 
-        console.log('Press ctrl+c to stop sharing')
+        console.log('Press ctrl+c to stop sharing');
+    }
+
+    server.listen(options.port, listener);
+
+    server.on('error', function (e) {
+        // Get available port between 7478 ~ 8000 if address is in use.
+        portfinder.getPort(function (err, port) {
+            options.port = port;
+            server.listen(port);
+        });
     });
 
 })();
-
