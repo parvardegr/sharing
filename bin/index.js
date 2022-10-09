@@ -69,9 +69,9 @@ var getNetworkAddress = () => {
     }
 
     if (fs.lstatSync(path).isFile()) {
-        const justPath = path.substring(0, path.lastIndexOf("/") + 1);
-        fileName = path.substring(path.lastIndexOf("/") + 1, path.length);
-        path = justPath;
+        let trailingSlash = (path.lastIndexOf("/") > -1) ? '/' : '\\';
+        fileName = _path.basename(path);
+        path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
     }
 
     const server = http.createServer((request, response) => {
@@ -110,7 +110,8 @@ var getNetworkAddress = () => {
             port: 7478,    // start port
             stopPort: 8000 // maximum port
         }, (err, port) => {
-            console.log(port);
+            console.log(`Listening on ${port}`);
+            options.port = port;
             server.listen(port, listener);
         });
     }
