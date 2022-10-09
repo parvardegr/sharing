@@ -9,6 +9,7 @@ const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
+const qrcodeOption = { small: true };
 
 portfinder.setBasePort(7478);
 portfinder.setHighestPort(8000);
@@ -35,12 +36,18 @@ var getNetworkAddress = () => {
         .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
+        .option("w", { alias: 'windows', describe: "Is windows os", type: "boolean", demandOption: false })
         .help(true)
         .argv;
 
 
     let path = undefined;
     let fileName = undefined;
+
+    if (options.windows) {
+        // seems windows os can't support small option on terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
+        qrcodeOption.small = false;
+    }
 
     if (options.clipboard) {
 
@@ -95,7 +102,7 @@ var getNetworkAddress = () => {
         
         console.log(usageMessage);
 
-        qrcode.generate(shareAddress, { small: true });
+        qrcode.generate(shareAddress, qrcodeOption);
 
         if (!options.clipboard)
             console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
