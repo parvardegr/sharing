@@ -69,14 +69,14 @@ var debugLog = (log) => {
     if (options.debug)
         config.debug = true;
 
-    let path = undefined;
-    let fileName = undefined;
-
     if (options.onWindowsNativeTerminal) {
         // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
         config.qrcode.small = false;
     }
  
+    let path = undefined;
+    let fileName = undefined;
+    
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');

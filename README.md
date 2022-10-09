@@ -4,6 +4,11 @@
 
 ![Sharing screenshot](/doc/sharing-banner.svg?raw=true "Sharing a directory")
 
+- share directory and file
+- share your clipboard
+- recive file (Soon!)
+- enjoyable! 😉
+
 ## Usage
 *sharing is depend on node v16.x or later*
 1. Install
