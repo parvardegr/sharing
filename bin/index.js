@@ -83,7 +83,7 @@ var getNetworkAddress = () => {
         let file = '';
         if (fileName) {
             usageMessage = `Scan the QR-Code to access '${fileName}' file on your phone`;
-            file = '/' + fileName;
+            file = '/' + encodeURIComponent(fileName);
         }
 
         if (options.clipboard)
