@@ -1,6 +1,12 @@
 #! /usr/bin/env node
-
+const fs = require('fs')
+const express = require("express");
+const app = express();
+var path = require('path');
 const yargs = require("yargs");
+const os = require('node:os');
+const nunjucks = require('nunjucks');
+
 const usage = "\nUsage: sharing <directory-path>";
 const options = yargs
         .usage(usage)  
@@ -9,37 +15,28 @@ const options = yargs
         .help(true)
         .argv;
 
-let path = options._[0];
-if (!path) {
+let choosenPath = 'C:\\Users\\leona\\Desktop\\projects' //options._[0];
+
+if (!choosenPath) {
     console.log('Specify directory or file path.');
     return;
 }
 
-const fs = require('fs')
-if (!fs.existsSync(path)) {
+if (!fs.existsSync(choosenPath)) {
     console.log('Directory or file not found.');
     return;
 }
 
-const isFile = fs.lstatSync(path).isFile();
+const isFile = fs.lstatSync(choosenPath).isFile();
 let fileName = undefined;
 if (isFile) {
-    const directoryPath = path.substring(0, path.lastIndexOf("/") + 1);
-    fileName = path.substring(path.lastIndexOf("/") + 1, path.length);
-    path = directoryPath;
+    const directoryPath = choosenPath.substring(0, choosenPath.lastIndexOf("/") + 1);
+    fileName = choosenPath.substring(choosenPath.lastIndexOf("/") + 1, choosenPath.length);
+    choosenPath = directoryPath;
 }
 
-// Actual Serving use serve
-
-const handler = require('serve-handler');
-const http = require('http');
-
-const server = http.createServer((request, response) => {
-  // More details here: https://github.com/vercel/serve-handler#options
-  return handler(request, response, { public: path });
-});
-
-const os = require('node:os');
+// Middleware for static files serving
+app.use(express.static(choosenPath));
 
 var networkInterfaces = os.networkInterfaces();
 var getNetworkAddress = () => {
@@ -54,8 +51,9 @@ var getNetworkAddress = () => {
     }
 };
 
-server.listen(options.port, () => {
-    let usageMessage = 'Scan the QR-Code to access \''+ path +'\' directory on your phone';
+// Starts listening on desired port (or default 7478)
+app.listen(options.port, () => {
+    let usageMessage = 'Scan the QR-Code to access \''+ choosenPath +'\' directory on your phone';
     let file = '';
     if (isFile) {
         usageMessage = 'Scan the QR-Code to access \''+ fileName +'\' file on your phone';
@@ -75,4 +73,31 @@ server.listen(options.port, () => {
     qrcode.generate(shareAddress, { small: true });
 
     console.log('Press ctrl+c to stop sharing')
+  });
+
+// Middleware for nunjucks templating engine
+// app.set('view engine', 'njk');
+nunjucks.configure('src/templates', {
+    express: app
+});
+
+const nunjucksVariables = {
+    documentTitle: 'Sharing',
+    directories: [],
+}
+
+app.get('/', function(req, res) {
+    fs.readdir(choosenPath, function (err, files) {
+        //handling error
+        if (err) {
+            return console.log('Unable to scan directory: ' + err);
+        } 
+        //listing all files using forEach
+        nunjucksVariables.directories = files;
+        res.render('index.njk', nunjucksVariables);
+        files.forEach(function (file) {
+            // Do whatever you want to do with the file
+            console.log(file); 
+        });
+    });
 });
