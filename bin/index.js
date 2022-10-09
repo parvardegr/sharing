@@ -3,12 +3,18 @@
 
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
 const _path = require("path");
 const os = require('node:os');
 const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
+let securityConfig = {
+    module: http,
+    protocol: 'http',
+    option: {}
+};
 
 portfinder.setBasePort(7478);
 portfinder.setHighestPort(8000);
@@ -35,6 +41,9 @@ var getNetworkAddress = () => {
         .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
+        .option("S", { alias: 'ssl', describe: "Enabel https", type: "boolean", demandOption: false })
+        .option("C", { alias: 'cert', describe: "Path to ssl cert file", type: "string", demandOption: false })
+        .option("K", { alias: 'key', describe: "Path to ssl key file", type: "string", demandOption: false })
         .help(true)
         .argv;
 
@@ -74,7 +83,18 @@ var getNetworkAddress = () => {
         path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
     }
 
-    const server = http.createServer((request, response) => {
+    if (options.ssl) {
+        securityConfig = {
+            module: https,
+            protocol: 'https',
+            option: {
+                key: fs.readFileSync(_path.resolve(__dirname, options.key)),
+                cert: fs.readFileSync(_path.resolve(__dirname, options.cert))
+            }
+        };
+    }
+
+    const server = securityConfig.module.createServer(securityConfig.option, (request, response) => {
         return handler(request, response, { public: path });
     });
 
@@ -91,7 +111,7 @@ var getNetworkAddress = () => {
 
         const time = new Date().getTime();
         const urlInfo = `:${options.port}${file}?time=${time}`;
-        const shareAddress = options.ip? `http://${options.ip}${urlInfo}`: `http://${getNetworkAddress()}${urlInfo}`;
+        const shareAddress = options.ip? `${securityConfig.protocol}://${options.ip}${urlInfo}`: `${securityConfig.protocol}://${getNetworkAddress()}${urlInfo}`;
         
         console.log(usageMessage);
 
