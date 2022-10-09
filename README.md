@@ -15,5 +15,29 @@
         - `sharing --ip your-public-ip-address /directory-or-file-to-share`
 4. Tada! Just browse the directory and download any file you want
 
+```
+$ sharing --help
+
+Usage:
+• Share file or directory
+$ sharing /path/to/file-or-directory
+
+• Share clipboard
+$ sharing -c
+
+• Recive file (Soon!)
+$ sharing /destination/directory --recive
+
+Options:
+      --version                     Show version number                [boolean]
+      --debug                       enable debuging logs
+  -p, --port                        Change default port
+      --ip                          Your machine public ip address
+  -c, --clipboard                   Share Clipboard
+  -w, --on-windows-native-terminal  Enable QR-Code support for windows native
+                                    terminal
+      --help                        Show help                          [boolean]
+```
+
 ## TODO
 - upload file from phone

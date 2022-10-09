@@ -11,13 +11,26 @@ const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
 
 
+// Usage
+const usage = `
+Usage:
+• Share file or directory
+$ sharing /path/to/file-or-directory
+
+• Share clipboard
+$ sharing -c
+
+• Recive file (Soon!)
+$ sharing /destination/directory --recive`;
+
+
 // Config
 const config = { 
     debug: false,
     qrcode: {
         small: true
     }
-}; 
+};
 
 
 // Utils
@@ -39,16 +52,17 @@ var debugLog = (log) => {
 }
 
 
+
 // Main
 (async () => {
 
     const options = yargs
-        .usage("\nUsage: sharing <directory-or-file-path>")
-        .option("debug", { describe: "enable debuging logs", type: "boolean", demandOption: false })
-        .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
-        .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
-        .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
-        .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", type: "boolean", demandOption: false })
+        .usage(usage)
+        .option("debug", { describe: "enable debuging logs", demandOption: false })
+        .option("p", { alias: 'port', describe: "Change default port", demandOption: false })
+        .option("ip", { describe: "Your machine public ip address", demandOption: false })
+        .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
+        .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
         .help(true)
         .argv;
 
