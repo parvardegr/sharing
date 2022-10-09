@@ -36,7 +36,7 @@ var getNetworkAddress = () => {
         .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
-        .option("w", { alias: 'windows', describe: "Is windows os", type: "boolean", demandOption: false })
+        .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", type: "boolean", demandOption: false })
         .help(true)
         .argv;
 
@@ -44,8 +44,8 @@ var getNetworkAddress = () => {
     let path = undefined;
     let fileName = undefined;
 
-    if (options.windows) {
-        // seems windows os can't support small option on terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
+    if (options.onWindowsNativeTerminal) {
+        // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
         qrcodeOption.small = false;
     }
 
