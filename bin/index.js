@@ -9,10 +9,16 @@ const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
-const qrcodeOption = { small: true };
 
-portfinder.setBasePort(7478);
-portfinder.setHighestPort(8000);
+
+// Config
+const config = { 
+    debug: false,
+    qrcode: {
+        small: true
+    }
+}; 
+
 
 // Utils
 var getNetworkAddress = () => {
@@ -27,12 +33,18 @@ var getNetworkAddress = () => {
     }
 };
 
+var debugLog = (log) => {
+    if (config.debug)
+        console.log(log);
+}
+
 
 // Main
 (async () => {
 
     const options = yargs
         .usage("\nUsage: sharing <directory-or-file-path>")
+        .option("debug", { describe: "enable debuging logs", type: "boolean", demandOption: false })
         .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
@@ -40,22 +52,30 @@ var getNetworkAddress = () => {
         .help(true)
         .argv;
 
+    if (options.debug)
+        config.debug = true;
 
     let path = undefined;
     let fileName = undefined;
 
     if (options.onWindowsNativeTerminal) {
         // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
-        qrcodeOption.small = false;
+        config.qrcode.small = false;
     }
-
+ 
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');
         
         const data = clipboard.default.readSync();
-        const filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
+        debugLog(`clipboard data:\n ${data}`);
+
+        let filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
+        filePath = decodeURI(filePath);
+        debugLog(`clipboard file path:\n ${filePath}`);
+
         if (fs.existsSync(filePath)) {
+            debugLog(`clipboard file ${filePath} found`);
             path = filePath;
         } else {
             fs.writeFileSync('.clipboard-tmp', data);
@@ -102,7 +122,7 @@ var getNetworkAddress = () => {
         
         console.log(usageMessage);
 
-        qrcode.generate(shareAddress, qrcodeOption);
+        qrcode.generate(shareAddress, config.qrcode);
 
         if (!options.clipboard)
             console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
@@ -114,10 +134,9 @@ var getNetworkAddress = () => {
         server.listen(options.port, listener);
     else {
         portfinder.getPort({
-            port: 7478,    // start port
-            stopPort: 8000 // maximum port
+            port: 7478,
+            stopPort: 8000
         }, (err, port) => {
-            console.log(`Listening on ${port}`);
             options.port = port;
             server.listen(port, listener);
         });
