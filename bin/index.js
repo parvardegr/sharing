@@ -11,6 +11,8 @@ const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
 const express = require('express');
 const fileUpload = require('express-fileupload');
+const basicAuth = require('express-basic-auth')
+
 
 // Usage
 const usage = `
@@ -21,8 +23,11 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Receive file (Soon!)
-$ sharing /destination/directory --receive`;
+• Receive file
+$ sharing /destination/directory --receive;
+
+• Share file with Basic Authentication
+$ sharing /path/to/file-or-directory -U user -P password  # also works with --receive`;
 
 
 // Config
@@ -30,11 +35,28 @@ const config = {
     debug: false,
     qrcode: {
         small: true
+    },
+    auth: {
+        username: undefined,
+        password: undefined
     }
 };
 
 
 // Utils
+var createDefaultApp = () => {
+    const app = express();
+    if (config.auth.username && config.auth.password) {
+        // Setup Basic Auth
+        app.use(basicAuth({
+            challenge: true,
+            realm: 'sharing',
+            users: { [config.auth.username]: config.auth.password }
+        }));
+    }
+    return app;
+}
+
 var getNetworkAddress = () => {
     for (const interfaceDetails of Object.values(os.networkInterfaces())) {
         if (!interfaceDetails)
@@ -65,6 +87,8 @@ var debugLog = (log) => {
         .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
         .option("r", { alias: 'receive', describe: "Receive files", demandOption: false })
         .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
+        .option("U", { default: 'user', alias: 'username', describe: "set basic authentication username", demandOption: false })
+        .option("P", { alias: 'password', describe: "set basic authentication password", demandOption: false })
         .help(true)
         .argv;
 
@@ -74,6 +98,11 @@ var debugLog = (log) => {
     if (options.onWindowsNativeTerminal) {
         // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
         config.qrcode.small = false;
+    }
+
+    if (options.username && options.password) {
+        config.auth.username = options.username;
+        config.auth.password = options.password;
     }
  
     let path = undefined;
@@ -118,12 +147,12 @@ var debugLog = (log) => {
     }
     
     if (options.receive) {
-        const app = express();
-        let uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
+        const app = createDefaultApp();
+        let uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/receive`: `http://${getNetworkAddress()}:${options.receivePort}/receive`;
 
         app.use(fileUpload());
 
-        const form = fs.readFileSync('./bin/upload-form.html');
+        const form = fs.readFileSync('./bin/receive-form.html');
 
         app.get('/form', (req, res) => {
             res.send(form.toString());
@@ -131,7 +160,7 @@ var debugLog = (log) => {
 
         app.post('/upload', (req, res) => {
             if (!req.files || Object.keys(req.files).length === 0) {
-                res.status(400).send('No files were uploaded.');
+                res.status(400).send('No files were received.');
                 return;
             }
 
@@ -177,7 +206,7 @@ var debugLog = (log) => {
 
     }
 
-    const shareApp = express();
+    const shareApp = createDefaultApp();
     shareApp.get('*', (req, res) => handler(req, res, { public: path }));
 
     const listener = () => {

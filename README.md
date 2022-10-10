@@ -7,6 +7,7 @@
 - share directory and file
 - share your clipboard
 - receive file
+- support basic authentication
 
 ## Usage
 *sharing is depend on node v16.x or later*
@@ -34,7 +35,11 @@ $ sharing /path/to/file-or-directory
 $ sharing -c
 
 • Receive file
-$ sharing /destination/directory --receive
+$ sharing /destination/directory --receive;
+
+• Share file with Basic Authentication
+$ sharing /path/to/file-or-directory -U user -P password  # also works with
+--receive
 
 Options:
       --version                     Show version number                [boolean]
@@ -46,9 +51,11 @@ Options:
                                     terminal
   -r, --receive                     Receive files
   -q, --receive-port                change receive default port
+  -U, --username                    set basic authentication username
+                                                               [default: "user"]
+  -P, --password                    set basic authentication password
       --help                        Show help                          [boolean]
 ```
 
 ## TODO
 - https
-- some security
