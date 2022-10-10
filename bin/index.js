@@ -149,12 +149,12 @@ var debugLog = (log) => {
     if (options.receive) {
         const app = createDefaultApp();
         let uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/receive`: `http://${getNetworkAddress()}:${options.receivePort}/receive`;
-
+        console.log(uploadAddress);
         app.use(fileUpload());
 
         const form = fs.readFileSync(`${__dirname}/receive-form.html`);
 
-        app.get('/form', (req, res) => {
+        app.get('/receive', (req, res) => {
             res.send(form.toString());
         });
 
@@ -199,7 +199,7 @@ var debugLog = (log) => {
                 stopPort: 1400
             }, (err, port) => {
                 options.receivePort = port;
-                uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
+                uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/receive`: `http://${getNetworkAddress()}:${options.receivePort}/receive`;
                 app.listen(port, listener);
             });
         }
