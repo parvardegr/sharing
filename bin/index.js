@@ -177,9 +177,8 @@ var debugLog = (log) => {
 
     }
 
-    const server = http.createServer((request, response) => {
-        return handler(request, response, { public: path });
-    });
+    const shareApp = express();
+    shareApp.get('*', (req, res) => handler(req, res, { public: path }));
 
     const listener = () => {
         let usageMessage = `Scan the QR-Code to access '${path}' directory on your phone`;
@@ -208,14 +207,14 @@ var debugLog = (log) => {
     }
 
     if (options.port)
-        server.listen(options.port, listener);
+        shareApp.listen(options.port, listener);
     else {
         portfinder.getPort({
             port: 7478,
             stopPort: 8000
         }, (err, port) => {
             options.port = port;
-            server.listen(port, listener);
+            shareApp.listen(port, listener);
         });
     }
 
