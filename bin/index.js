@@ -119,7 +119,7 @@ var debugLog = (log) => {
     
     if (options.receive) {
         const app = express();
-        const uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
+        let uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
 
         app.use(fileUpload());
 
@@ -155,9 +155,11 @@ var debugLog = (log) => {
         });
 
         const listener = () => {
-            console.log('Scan the QR-Code to upload your file');
+            console.log('\nScan the QR-Code to upload your file');
             qrcode.generate(uploadAddress, config.qrcode);
-            console.log(`Or enter the following address in a browser tab in your phone: ${uploadAddress}\n`);
+            console.log(`or access this link: ${uploadAddress}\n`);
+
+            console.log('Press ctrl+c to stop sharing');
         }
 
         if (options.receivePort)
@@ -168,6 +170,7 @@ var debugLog = (log) => {
                 stopPort: 1400
             }, (err, port) => {
                 options.receivePort = port;
+                uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
                 app.listen(port, listener);
             });
         }
@@ -198,9 +201,10 @@ var debugLog = (log) => {
         qrcode.generate(shareAddress, config.qrcode);
 
         if (!options.clipboard)
-            console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
+            console.log(`or access this link: ${shareAddress}`);
 
-        console.log('\nPress ctrl+c to stop sharing');
+        if(!options.receive)
+            console.log('\nPress ctrl+c to stop sharing');
     }
 
     if (options.port)
