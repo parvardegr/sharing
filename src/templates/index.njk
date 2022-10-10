@@ -7,10 +7,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <title>{{ documentTitle }}</title>
 </head>
-<body class="m-2">
-  <ul>
+<body>
+  <ul class="m-1">
     {% for dir in directories %}
-      <li class="underline text-blue-600 cursor-pointer">{{ dir }}</li>
+      <li><a class="cursor-pointer text-blue-600 underline" href="{{ dir.href }}">{{ dir.text }}</a></li>
     {% endfor %}
   </ul>
 </body>
