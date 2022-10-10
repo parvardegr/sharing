@@ -19,6 +19,10 @@
         - `sharing --ip your-public-ip-address /directory-or-file-to-share`
 4. Tada! Just browse the directory and download any file you want
 
+*note: macos users should use `easy-sharing` binary instead of `sharing`*
+
+example: `easy-sharing /file-or-directory`
+
 ```
 $ sharing --help
 
