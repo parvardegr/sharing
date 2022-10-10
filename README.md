@@ -6,7 +6,7 @@
 
 - share directory and file
 - share your clipboard
-- recive file (Soon!)
+- receive file (Soon!)
 - enjoyable! 😉
 
 ## Usage
@@ -30,8 +30,8 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Recive file (Soon!)
-$ sharing /destination/directory --recive
+• Receive file (Soon!)
+$ sharing /destination/directory --receive
 
 Options:
       --version                     Show version number                [boolean]
