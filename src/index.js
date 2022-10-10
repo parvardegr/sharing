@@ -95,9 +95,5 @@ app.get('/', function(req, res) {
         //listing all files using forEach
         nunjucksVariables.directories = files;
         res.render('index.njk', nunjucksVariables);
-        files.forEach(function (file) {
-            // Do whatever you want to do with the file
-            console.log(file); 
-        });
     });
 });
