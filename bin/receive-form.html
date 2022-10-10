@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <title>upload</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+
+    <style type="text/css">
+        #share {
+            box-sizing: content-box;
+            font-family: monospace;
+            color: #181818;
+            font-size: 32px;
+            font-size: 5vw;
+            background-color: blueviolet;
+            padding: 16px;
+            font-weight: bolder;
+            text-align: center;
+            border: 5px solid #181818;
+        }
+        #share-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        body {
+            background-color: #005bff47;
+            margin: 0;
+        }
+    </style>
+
+    <body>
+        <form ref='uploadForm' 
+          id='uploadForm' 
+          action='/upload' 
+          method='post' 
+          encType="multipart/form-data">
+            <div id="share-container">
+                <label id="share" for="file-input" class="btn">Share file🚀</label>
+            </div>
+            <!-- <label id="share" for="file-input" class="btn">Share File!</label> -->
+            <input id="file-input" type="file" name="selected" style="visibility:hidden; display:none;"/>
+            <!-- <input type='submit' value='Share file!' /> -->
+        </form>
+    </body>
+
+    <script>
+        document.getElementById("file-input").onchange = function() {
+            document.getElementById("uploadForm").submit();
+        };
+    </script>
+
+</html>
