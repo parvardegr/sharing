@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const http = require('http');
+const https = require('https');
 const _path = require("path");
 const os = require('node:os');
 const yargs = require("yargs");
@@ -39,6 +40,11 @@ const config = {
     auth: {
         username: undefined,
         password: undefined
+    },
+    ssl: {
+        protocolModule: http,
+        protocol: 'http',
+        option: {}
     }
 };
 
@@ -89,6 +95,9 @@ var debugLog = (log) => {
         .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
         .option("U", { default: 'user', alias: 'username', describe: "set basic authentication username", demandOption: false })
         .option("P", { alias: 'password', describe: "set basic authentication password", demandOption: false })
+        .option("S", { alias: 'ssl', describe: "Enabel https", type: "boolean", demandOption: false })
+        .option("C", { alias: 'cert', describe: "Path to ssl cert file", type: "string", demandOption: false })
+        .option("K", { alias: 'key', describe: "Path to ssl key file", type: "string", demandOption: false })
         .help(true)
         .argv;
 
@@ -107,7 +116,28 @@ var debugLog = (log) => {
  
     let path = undefined;
     let fileName = undefined;
-    
+
+    if (options.ssl) {
+        if (!options.cert) {
+            console.log('Specify the cert path.');
+            return;
+        }
+        
+        if (!options.key) {
+            console.log('Specify the key path.');
+            return;
+        }
+
+        config.ssl = {
+            protocolModule: https,
+            protocol: 'https',
+            option: {
+                key: fs.readFileSync(_path.resolve(__dirname, options.key)),
+                cert: fs.readFileSync(_path.resolve(__dirname, options.cert))
+            }
+        };
+    }
+
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');
@@ -148,7 +178,7 @@ var debugLog = (log) => {
     
     if (options.receive) {
         const app = createDefaultApp();
-        let uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/receive`: `http://${getNetworkAddress()}:${options.receivePort}/receive`;
+        let uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
         console.log(uploadAddress);
         app.use(fileUpload());
 
@@ -192,15 +222,15 @@ var debugLog = (log) => {
         }
 
         if (options.receivePort)
-            app.listen(options.receivePort, listener);
+            config.ssl.protocolModule.createServer(config.ssl.option, app).listen(options.receivePort, listener);
         else {
             portfinder.getPort({
                 port: 1374,
                 stopPort: 1400
             }, (err, port) => {
                 options.receivePort = port;
-                uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/receive`: `http://${getNetworkAddress()}:${options.receivePort}/receive`;
-                app.listen(port, listener);
+                uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
+                config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, listener);
             });
         }
 
@@ -222,7 +252,7 @@ var debugLog = (log) => {
 
         const time = new Date().getTime();
         const urlInfo = `:${options.port}${file}?time=${time}`;
-        const shareAddress = options.ip? `http://${options.ip}${urlInfo}`: `http://${getNetworkAddress()}${urlInfo}`;
+        const shareAddress = options.ip? `${config.ssl.protocol}://${options.ip}${urlInfo}`: `${config.ssl.protocol}://${getNetworkAddress()}${urlInfo}`;
         
         console.log(usageMessage);
 
@@ -236,14 +266,14 @@ var debugLog = (log) => {
     }
 
     if (options.port)
-        shareApp.listen(options.port, listener);
+        config.ssl.protocolModule.createServer(config.ssl.option, shareApp).listen(options.port, listener);
     else {
         portfinder.getPort({
             port: 7478,
             stopPort: 8000
         }, (err, port) => {
             options.port = port;
-            shareApp.listen(port, listener);
+            config.ssl.protocolModule.createServer(config.ssl.option, shareApp).listen(options.port, listener);
         });
     }
 
