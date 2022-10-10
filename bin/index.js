@@ -152,7 +152,7 @@ var debugLog = (log) => {
 
         app.use(fileUpload());
 
-        const form = fs.readFileSync('./bin/receive-form.html');
+        const form = fs.readFileSync(`${__dirname}/receive-form.html`);
 
         app.get('/form', (req, res) => {
             res.send(form.toString());

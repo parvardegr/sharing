@@ -1,6 +1,6 @@
 {
   "name": "easy-sharing",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Sharing is a command-line tool to share directories and files from the CLI to iOS and Android devices without the need of an extra client app",
   "main": "bin/index.js",
   "scripts": {
