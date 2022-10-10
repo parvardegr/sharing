@@ -63,7 +63,8 @@ var debugLog = (log) => {
         .option("ip", { describe: "Your machine public ip address", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
         .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
-        .option("u", { alias: 'upload', describe: "Upload files", type: "boolean", demandOption: false })
+        .option("r", { alias: 'receive', describe: "Receive files", demandOption: false })
+        .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
         .help(true)
         .argv;
 
@@ -116,9 +117,9 @@ var debugLog = (log) => {
         path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
     }
     
-    if (options.upload) {
+    if (options.receive) {
         const app = express();
-        const uploadAddress = options.ip? `http://${options.ip}:8000/form`: `http://${getNetworkAddress()}:8000/form`;
+        const uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
 
         app.use(fileUpload());
 
@@ -138,7 +139,7 @@ var debugLog = (log) => {
                           method='post' 
                           encType="multipart/form-data">
                             <input type="file" name="sampleFile" />
-                            <input type='submit' value='Upload!' />
+                            <input type='submit' value='Share file!' />
                         </form>
                     </body>
                 </html>
@@ -157,24 +158,40 @@ var debugLog = (log) => {
             sampleFile = req.files.sampleFile;
 
             uploadPath = _path.resolve(__dirname, path) + '/' + sampleFile.name;
+            debugLog(`upload path: ${uploadPath}`);
 
-            sampleFile.mv(uploadPath, function(err) {
+            sampleFile.mv(uploadPath).then(err => {
                 if (err) {
                     return res.status(500).send(err);
                 }
 
                 res.send(`
-                    <h1>file uploaded</h1>
-                    <a href="${uploadAddress}">upload again</a>
+                    <script>
+                        window.alert('${sampleFile.name} shared!');
+                        window.location.href = '${uploadAddress}';
+                    </script>
                 `);
             });
         });
 
-        app.listen(8000, function() {
-          console.log('Scan the QR-Code to upload your file');
-          qrcode.generate(uploadAddress, { small: true });
-          console.log(`Or enter the following address in a browser tab in your phone: ${uploadAddress}\n`);
-        });
+        const listener = () => {
+            console.log('Scan the QR-Code to upload your file');
+            qrcode.generate(uploadAddress, config.qrcode);
+            console.log(`Or enter the following address in a browser tab in your phone: ${uploadAddress}\n`);
+        }
+
+        if (options.receivePort)
+            app.listen(options.receivePort, listener);
+        else {
+            portfinder.getPort({
+                port: 1374,
+                stopPort: 1400
+            }, (err, port) => {
+                options.receivePort = port;
+                app.listen(port, listener);
+            });
+        }
+
     }
 
     const server = http.createServer((request, response) => {
