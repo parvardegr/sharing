@@ -46,4 +46,5 @@ Options:
 ```
 
 ## TODO
-- upload file from phone
+- https
+- some security
