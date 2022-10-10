@@ -7,7 +7,6 @@
 - share directory and file
 - share your clipboard
 - receive file
-- enjoyable! 😉
 
 ## Usage
 *sharing is depend on node v16.x or later*
@@ -30,7 +29,7 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• receive file
+• Receive file
 $ sharing /destination/directory --receive
 
 Options:
