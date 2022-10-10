@@ -6,8 +6,7 @@
 
 - share directory and file
 - share your clipboard
-- recive file (Soon!)
-- enjoyable! 😉
+- receive file
 
 ## Usage
 *sharing is depend on node v16.x or later*
@@ -20,6 +19,10 @@
         - `sharing --ip your-public-ip-address /directory-or-file-to-share`
 4. Tada! Just browse the directory and download any file you want
 
+*note: macos users should use `easy-sharing` binary instead of `sharing`*
+
+example: `easy-sharing /file-or-directory`
+
 ```
 $ sharing --help
 
@@ -30,8 +33,8 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Recive file (Soon!)
-$ sharing /destination/directory --recive
+• Receive file
+$ sharing /destination/directory --receive
 
 Options:
       --version                     Show version number                [boolean]
@@ -41,8 +44,11 @@ Options:
   -c, --clipboard                   Share Clipboard
   -w, --on-windows-native-terminal  Enable QR-Code support for windows native
                                     terminal
+  -r, --receive                     Receive files
+  -q, --receive-port                change receive default port
       --help                        Show help                          [boolean]
 ```
 
 ## TODO
-- upload file from phone
+- https
+- some security

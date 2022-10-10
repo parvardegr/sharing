@@ -10,12 +10,14 @@ const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
+const express = require('express');
+const fileUpload = require('express-fileupload');
+
 let securityConfig = {
     module: http,
     protocol: 'http',
     option: {}
 };
-
 
 // Usage
 const usage = `
@@ -26,8 +28,8 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Recive file (Soon!)
-$ sharing /destination/directory --recive`;
+• Receive file (Soon!)
+$ sharing /destination/directory --receive`;
 
 
 // Config
@@ -58,7 +60,6 @@ var debugLog = (log) => {
 }
 
 
-
 // Main
 (async () => {
 
@@ -72,6 +73,8 @@ var debugLog = (log) => {
         .option("S", { alias: 'ssl', describe: "Enabel https", type: "boolean", demandOption: false })
         .option("C", { alias: 'cert', describe: "Path to ssl cert file", type: "string", demandOption: false })
         .option("K", { alias: 'key', describe: "Path to ssl key file", type: "string", demandOption: false })
+        .option("r", { alias: 'receive', describe: "Receive files", demandOption: false })
+        .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
         .help(true)
         .argv;
 
@@ -123,6 +126,66 @@ var debugLog = (log) => {
         fileName = _path.basename(path);
         path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
     }
+    
+    if (options.receive) {
+        const app = express();
+        let uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
+
+        app.use(fileUpload());
+
+        const form = fs.readFileSync('./bin/upload-form.html');
+
+        app.get('/form', (req, res) => {
+            res.send(form.toString());
+        });
+
+        app.post('/upload', (req, res) => {
+            if (!req.files || Object.keys(req.files).length === 0) {
+                res.status(400).send('No files were uploaded.');
+                return;
+            }
+
+            const selectedFile = req.files.selected;
+
+            const uploadPath = _path.resolve(__dirname, path) + '/' + selectedFile.name;
+            debugLog(`upload path: ${uploadPath}`);
+
+            selectedFile.mv(uploadPath).then(err => {
+                if (err) {
+                    return res.status(500).send(err);
+                }
+
+                res.send(`
+                    <script>
+                        window.alert('Shared at ${uploadPath}');
+                        window.location.href = '${uploadAddress}';
+                    </script>
+                `);
+            });
+        });
+
+        const listener = () => {
+            console.log('\nScan the QR-Code to upload your file');
+            qrcode.generate(uploadAddress, config.qrcode);
+            console.log(`or access this link: ${uploadAddress}\n`);
+
+            console.log('Press ctrl+c to stop sharing');
+        }
+
+        if (options.receivePort)
+            app.listen(options.receivePort, listener);
+        else {
+            portfinder.getPort({
+                port: 1374,
+                stopPort: 1400
+            }, (err, port) => {
+                options.receivePort = port;
+                uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
+                app.listen(port, listener);
+            });
+        }
+
+    }
 
     if (options.ssl) {
         securityConfig = {
@@ -159,9 +222,10 @@ var debugLog = (log) => {
         qrcode.generate(shareAddress, config.qrcode);
 
         if (!options.clipboard)
-            console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
+            console.log(`or access this link: ${shareAddress}`);
 
-        console.log('Press ctrl+c to stop sharing');
+        if(!options.receive)
+            console.log('\nPress ctrl+c to stop sharing');
     }
 
     if (options.port)
