@@ -16,8 +16,28 @@ let securityConfig = {
     option: {}
 };
 
-portfinder.setBasePort(7478);
-portfinder.setHighestPort(8000);
+
+// Usage
+const usage = `
+Usage:
+• Share file or directory
+$ sharing /path/to/file-or-directory
+
+• Share clipboard
+$ sharing -c
+
+• Recive file (Soon!)
+$ sharing /destination/directory --recive`;
+
+
+// Config
+const config = { 
+    debug: false,
+    qrcode: {
+        small: true
+    }
+};
+
 
 // Utils
 var getNetworkAddress = () => {
@@ -32,32 +52,53 @@ var getNetworkAddress = () => {
     }
 };
 
+var debugLog = (log) => {
+    if (config.debug)
+        console.log(log);
+}
+
+
 
 // Main
 (async () => {
 
     const options = yargs
-        .usage("\nUsage: sharing <directory-or-file-path>")
-        .option("p", { alias: 'port', describe: "Change default port", type: "integer", demandOption: false })
-        .option("ip", { describe: "Your machine public ip address", type: "string", demandOption: false })
-        .option("c", { alias: 'clipboard', describe: "Share Clipboard", type: "boolean", demandOption: false })
+        .usage(usage)
+        .option("debug", { describe: "enable debuging logs", demandOption: false })
+        .option("p", { alias: 'port', describe: "Change default port", demandOption: false })
+        .option("ip", { describe: "Your machine public ip address", demandOption: false })
+        .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
+        .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
         .option("S", { alias: 'ssl', describe: "Enabel https", type: "boolean", demandOption: false })
         .option("C", { alias: 'cert', describe: "Path to ssl cert file", type: "string", demandOption: false })
         .option("K", { alias: 'key', describe: "Path to ssl key file", type: "string", demandOption: false })
         .help(true)
         .argv;
 
+    if (options.debug)
+        config.debug = true;
 
+    if (options.onWindowsNativeTerminal) {
+        // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
+        config.qrcode.small = false;
+    }
+ 
     let path = undefined;
     let fileName = undefined;
-
+    
     if (options.clipboard) {
 
         const clipboard = await import('clipboardy');
         
         const data = clipboard.default.readSync();
-        const filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
+        debugLog(`clipboard data:\n ${data}`);
+
+        let filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
+        filePath = decodeURI(filePath);
+        debugLog(`clipboard file path:\n ${filePath}`);
+
         if (fs.existsSync(filePath)) {
+            debugLog(`clipboard file ${filePath} found`);
             path = filePath;
         } else {
             fs.writeFileSync('.clipboard-tmp', data);
@@ -103,7 +144,7 @@ var getNetworkAddress = () => {
         let file = '';
         if (fileName) {
             usageMessage = `Scan the QR-Code to access '${fileName}' file on your phone`;
-            file = '/' + fileName;
+            file = '/' + encodeURIComponent(fileName);
         }
 
         if (options.clipboard)
@@ -115,7 +156,7 @@ var getNetworkAddress = () => {
         
         console.log(usageMessage);
 
-        qrcode.generate(shareAddress, { small: true });
+        qrcode.generate(shareAddress, config.qrcode);
 
         if (!options.clipboard)
             console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
@@ -127,10 +168,9 @@ var getNetworkAddress = () => {
         server.listen(options.port, listener);
     else {
         portfinder.getPort({
-            port: 7478,    // start port
-            stopPort: 8000 // maximum port
+            port: 7478,
+            stopPort: 8000
         }, (err, port) => {
-            console.log(`Listening on ${port}`);
             options.port = port;
             server.listen(port, listener);
         });
