@@ -6,8 +6,7 @@
 
 - share directory and file
 - share your clipboard
-- receive file (Soon!)
-- enjoyable! 😉
+- receive file
 
 ## Usage
 *sharing is depend on node v16.x or later*
@@ -30,7 +29,7 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Receive file (Soon!)
+• Receive file
 $ sharing /destination/directory --receive
 
 Options:
@@ -41,6 +40,8 @@ Options:
   -c, --clipboard                   Share Clipboard
   -w, --on-windows-native-terminal  Enable QR-Code support for windows native
                                     terminal
+  -r, --receive                     Receive files
+  -q, --receive-port                change receive default port
       --help                        Show help                          [boolean]
 ```
 

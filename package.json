@@ -24,6 +24,8 @@
   "license": "MIT",
   "dependencies": {
     "portfinder": "^1.0.32",
+    "express": "^4.18.1",
+    "express-fileupload": "^1.4.0",
     "qrcode-terminal": "^0.12.0",
     "serve": "^14.0.1",
     "yargs": "^17.6.0"

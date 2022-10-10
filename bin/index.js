@@ -9,7 +9,8 @@ const yargs = require("yargs");
 const handler = require('serve-handler');
 const qrcode = require('qrcode-terminal');
 const portfinder = require('portfinder');
-
+const express = require('express');
+const fileUpload = require('express-fileupload');
 
 // Usage
 const usage = `
@@ -52,7 +53,6 @@ var debugLog = (log) => {
 }
 
 
-
 // Main
 (async () => {
 
@@ -63,6 +63,8 @@ var debugLog = (log) => {
         .option("ip", { describe: "Your machine public ip address", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
         .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
+        .option("r", { alias: 'receive', describe: "Receive files", demandOption: false })
+        .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
         .help(true)
         .argv;
 
@@ -114,6 +116,63 @@ var debugLog = (log) => {
         fileName = _path.basename(path);
         path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
     }
+    
+    if (options.receive) {
+        const app = express();
+        const uploadAddress = options.ip? `http://${options.ip}:${options.receivePort}/form`: `http://${getNetworkAddress()}:${options.receivePort}/form`;
+
+        app.use(fileUpload());
+
+        const form = fs.readFileSync('./bin/upload-form.html');
+
+        app.get('/form', (req, res) => {
+            res.send(form.toString());
+        });
+
+        app.post('/upload', (req, res) => {
+            if (!req.files || Object.keys(req.files).length === 0) {
+                res.status(400).send('No files were uploaded.');
+                return;
+            }
+
+            const selectedFile = req.files.selected;
+
+            const uploadPath = _path.resolve(__dirname, path) + '/' + selectedFile.name;
+            debugLog(`upload path: ${uploadPath}`);
+
+            selectedFile.mv(uploadPath).then(err => {
+                if (err) {
+                    return res.status(500).send(err);
+                }
+
+                res.send(`
+                    <script>
+                        window.alert('Shared at ${uploadPath}');
+                        window.location.href = '${uploadAddress}';
+                    </script>
+                `);
+            });
+        });
+
+        const listener = () => {
+            console.log('Scan the QR-Code to upload your file');
+            qrcode.generate(uploadAddress, config.qrcode);
+            console.log(`Or enter the following address in a browser tab in your phone: ${uploadAddress}\n`);
+        }
+
+        if (options.receivePort)
+            app.listen(options.receivePort, listener);
+        else {
+            portfinder.getPort({
+                port: 1374,
+                stopPort: 1400
+            }, (err, port) => {
+                options.receivePort = port;
+                app.listen(port, listener);
+            });
+        }
+
+    }
 
     const server = http.createServer((request, response) => {
         return handler(request, response, { public: path });
@@ -141,7 +200,7 @@ var debugLog = (log) => {
         if (!options.clipboard)
             console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
 
-        console.log('Press ctrl+c to stop sharing');
+        console.log('\nPress ctrl+c to stop sharing');
     }
 
     if (options.port)
