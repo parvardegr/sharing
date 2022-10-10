@@ -59,3 +59,4 @@ Options:
 
 ## TODO
 - https
+- new banner screenshot (also show the --receive functionality)
