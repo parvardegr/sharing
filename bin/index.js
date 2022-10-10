@@ -20,8 +20,8 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Recive file (Soon!)
-$ sharing /destination/directory --recive`;
+• Receive file (Soon!)
+$ sharing /destination/directory --receive`;
 
 
 // Config
