@@ -123,51 +123,31 @@ var debugLog = (log) => {
 
         app.use(fileUpload());
 
+        const form = fs.readFileSync('./bin/upload-form.html');
+
         app.get('/form', (req, res) => {
-            res.send(`
-                <!DOCTYPE html>
-                <html lang="en" dir="ltr">
-                    <head>
-                        <meta charset="utf-8">
-                        <title>upload</title>
-                        <meta name="viewport" content="width=device-width, initial-scale=1" />
-                    </head>
-                    <body>
-                        <form ref='uploadForm' 
-                          id='uploadForm' 
-                          action='/upload' 
-                          method='post' 
-                          encType="multipart/form-data">
-                            <input type="file" name="sampleFile" />
-                            <input type='submit' value='Share file!' />
-                        </form>
-                    </body>
-                </html>
-            `);
+            res.send(form.toString());
         });
 
-        app.post('/upload', function(req, res) {
-            let sampleFile;
-            let uploadPath;
-
+        app.post('/upload', (req, res) => {
             if (!req.files || Object.keys(req.files).length === 0) {
                 res.status(400).send('No files were uploaded.');
                 return;
             }
 
-            sampleFile = req.files.sampleFile;
+            const selectedFile = req.files.selected;
 
-            uploadPath = _path.resolve(__dirname, path) + '/' + sampleFile.name;
+            const uploadPath = _path.resolve(__dirname, path) + '/' + selectedFile.name;
             debugLog(`upload path: ${uploadPath}`);
 
-            sampleFile.mv(uploadPath).then(err => {
+            selectedFile.mv(uploadPath).then(err => {
                 if (err) {
                     return res.status(500).send(err);
                 }
 
                 res.send(`
                     <script>
-                        window.alert('${sampleFile.name} shared!');
+                        window.alert('Shared at ${uploadPath}');
                         window.location.href = '${uploadAddress}';
                     </script>
                 `);
@@ -220,7 +200,7 @@ var debugLog = (log) => {
         if (!options.clipboard)
             console.log(`Or enter the following address in a browser tab in your phone: ${shareAddress}`);
 
-        console.log('Press ctrl+c to stop sharing');
+        console.log('\nPress ctrl+c to stop sharing');
     }
 
     if (options.port)

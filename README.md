@@ -6,7 +6,7 @@
 
 - share directory and file
 - share your clipboard
-- recive file (Soon!)
+- receive file
 - enjoyable! 😉
 
 ## Usage
@@ -30,8 +30,8 @@ $ sharing /path/to/file-or-directory
 • Share clipboard
 $ sharing -c
 
-• Recive file (Soon!)
-$ sharing /destination/directory --recive
+• receive file
+$ sharing /destination/directory --receive
 
 Options:
       --version                     Show version number                [boolean]
@@ -41,6 +41,8 @@ Options:
   -c, --clipboard                   Share Clipboard
   -w, --on-windows-native-terminal  Enable QR-Code support for windows native
                                     terminal
+  -r, --receive                     Receive files
+  -q, --receive-port                change receive default port
       --help                        Show help                          [boolean]
 ```
 
