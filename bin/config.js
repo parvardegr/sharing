@@ -1,4 +1,4 @@
-module.exports = {
+module.exports = { 
     debug: false,
     qrcode: {
         small: true
@@ -6,5 +6,10 @@ module.exports = {
     auth: {
         username: undefined,
         password: undefined
+    },
+    ssl: {
+        protocolModule: http,
+        protocol: 'http',
+        option: {}
     }
-}
+};
