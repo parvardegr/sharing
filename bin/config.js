@@ -1,3 +1,5 @@
+const http = require('http');
+
 module.exports = { 
     debug: false,
     qrcode: {

@@ -2,7 +2,6 @@
 
 
 const fs = require('fs');
-const http = require('http');
 const https = require('https');
 const _path = require("path");
 const os = require('node:os');
