@@ -176,6 +176,10 @@ var debugLog = (log) => {
         path = path.substring(0, path.lastIndexOf(trailingSlash) + 1);
     }
     
+    const startServer = (app, port, listener) => {
+        config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, listener);
+    };
+    
     if (options.receive) {
         const app = createDefaultApp();
         let uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
@@ -222,7 +226,7 @@ var debugLog = (log) => {
         }
 
         if (options.receivePort)
-            config.ssl.protocolModule.createServer(config.ssl.option, app).listen(options.receivePort, listener);
+            startServer(app, options.receivePort, listener);
         else {
             portfinder.getPort({
                 port: 1374,
@@ -230,7 +234,7 @@ var debugLog = (log) => {
             }, (err, port) => {
                 options.receivePort = port;
                 uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
-                config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, listener);
+                startServer(app, options.receivePort, listener);
             });
         }
 
@@ -266,14 +270,15 @@ var debugLog = (log) => {
     }
 
     if (options.port)
-        config.ssl.protocolModule.createServer(config.ssl.option, shareApp).listen(options.port, listener);
+        startServer(shareApp, options.port, listener);
     else {
         portfinder.getPort({
             port: 7478,
             stopPort: 8000
         }, (err, port) => {
+            console.log(213);
             options.port = port;
-            config.ssl.protocolModule.createServer(config.ssl.option, shareApp).listen(options.port, listener);
+            startServer(shareApp, options.port, listener);
         });
     }
 
