@@ -63,31 +63,28 @@ var debugLog = (log) => {
 
 // Main
 (async () => {
-
     const options = yargs
         .usage(usage)
-        .option("debug", { describe: "enable debuging logs", demandOption: false })
-        .option("p", { alias: 'port', describe: "Change default port", demandOption: false })
-        .option("ip", { describe: "Your machine public ip address", demandOption: false })
-        .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
-        .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
-        .option("r", { alias: 'receive', describe: "Receive files", demandOption: false })
-        .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
-        .option("U", { default: 'user', alias: 'username', describe: "set basic authentication username", demandOption: false })
-        .option("P", { alias: 'password', describe: "set basic authentication password", demandOption: false })
+        .option("debug", { describe: "enable debuging logs", demandOption: false, type: 'boolean' })
+        .option("p", { alias: 'port', describe: "Change default port", demandOption: false, type: 'number' })
+        .option("ip", { describe: "Your machine public ip address", demandOption: false, type: 'string' })
+        .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false, type: 'boolean' })
+        .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false, type: 'boolean' })
+        .option("r", { alias: 'receive', describe: "Receive files", demandOption: false, type: 'boolean' })
+        .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false, type: 'number' })
+        .option("U", { default: 'user', alias: 'username', describe: "set basic authentication username", demandOption: false, type: 'string' })
+        .option("P", { alias: 'password', describe: "set basic authentication password", demandOption: false, type: 'string' })
         .option("S", { alias: 'ssl', describe: "Enabel https", type: "boolean", demandOption: false })
         .option("C", { alias: 'cert', describe: "Path to ssl cert file", type: "string", demandOption: false })
         .option("K", { alias: 'key', describe: "Path to ssl key file", type: "string", demandOption: false })
         .help(true)
         .argv;
 
-    if (options.debug)
-        config.debug = true;
+    config.debug = options.debug;
 
-    if (options.onWindowsNativeTerminal) {
-        // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
-        config.qrcode.small = false;
-    }
+    // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
+    config.qrcode.small = !options.onWindowsNativeTerminal;
+    console.log(options._[0]);    
 
     if (options.username && options.password) {
         config.auth.username = options.username;
@@ -256,7 +253,6 @@ var debugLog = (log) => {
             port: 7478,
             stopPort: 8000
         }, (err, port) => {
-            console.log(213);
             options.port = port;
             startServer(shareApp, options.port, listener);
         });
