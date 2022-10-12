@@ -2,7 +2,6 @@
 
 
 const fs = require('fs');
-const http = require('http');
 const https = require('https');
 const _path = require("path");
 const os = require('node:os');
@@ -13,7 +12,7 @@ const portfinder = require('portfinder');
 const express = require('express');
 const fileUpload = require('express-fileupload');
 const basicAuth = require('express-basic-auth')
-
+const config = require('./config');
 
 // Usage
 const usage = `
@@ -29,25 +28,6 @@ $ sharing /destination/directory --receive;
 
 • Share file with Basic Authentication
 $ sharing /path/to/file-or-directory -U user -P password  # also works with --receive`;
-
-
-// Config
-const config = { 
-    debug: false,
-    qrcode: {
-        small: true
-    },
-    auth: {
-        username: undefined,
-        password: undefined
-    },
-    ssl: {
-        protocolModule: http,
-        protocol: 'http',
-        option: {}
-    }
-};
-
 
 // Utils
 var createDefaultApp = () => {
