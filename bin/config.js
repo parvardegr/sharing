@@ -14,8 +14,8 @@ module.exports = {
         protocol: 'http',
         option: {}
     },
-    appPort: 7478,
-    appStopPort: 8000,
-    receivePort: 1374,
-    receiveStopPort: 1400, 
+    defaultAppPort: 7478,
+    defaultAppStopPort: 8000,
+    defaultReceivePort: 1374,
+    defaultReceiveStopPort: 1400, 
 };
