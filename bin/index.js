@@ -84,7 +84,6 @@ var debugLog = (log) => {
 
     // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
     config.qrcode.small = !options.onWindowsNativeTerminal;
-    console.log(options._[0]);    
 
     if (options.username && options.password) {
         config.auth.username = options.username;
@@ -159,7 +158,7 @@ var debugLog = (log) => {
     
     if (options.receive) {
         const app = createDefaultApp();
-        let uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
+        let uploadAddress = options.ip && options.receivePort ? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${config.receivePort}/receive`;
         console.log(uploadAddress);
         app.use(fileUpload());
 
@@ -206,11 +205,11 @@ var debugLog = (log) => {
             startServer(app, options.receivePort, listener);
         else {
             portfinder.getPort({
-                port: 1374,
-                stopPort: 1400
+                port: config.receivePort,
+                stopPort: config.receiveStopPort
             }, (err, port) => {
                 options.receivePort = port;
-                uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
+                uploadAddress = options.ip ? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
                 startServer(app, options.receivePort, listener);
             });
         }
@@ -250,8 +249,8 @@ var debugLog = (log) => {
         startServer(shareApp, options.port, listener);
     else {
         portfinder.getPort({
-            port: 7478,
-            stopPort: 8000
+            port: config.appPort,
+            stopPort: config.appStopPort
         }, (err, port) => {
             options.port = port;
             startServer(shareApp, options.port, listener);
