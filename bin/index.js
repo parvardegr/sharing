@@ -204,7 +204,7 @@ var debugLog = (log) => {
         else {
             portfinder.getPort({
                 port: config.defaultReceivePort,
-                stopPort: config.defaultReceivePort
+                stopPort: config.defaultReceiveStopPort
             }, (err, port) => {
                 options.receivePort = port;
                 uploadAddress = options.ip ? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
