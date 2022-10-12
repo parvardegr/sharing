@@ -63,7 +63,6 @@ var debugLog = (log) => {
 
 // Main
 (async () => {
-
     const options = yargs
         .usage(usage)
         .option("debug", { describe: "enable debuging logs", demandOption: false })
@@ -75,19 +74,15 @@ var debugLog = (log) => {
         .option("q", { alias: 'receive-port', describe: "change receive default port", demandOption: false })
         .option("U", { default: 'user', alias: 'username', describe: "set basic authentication username", demandOption: false })
         .option("P", { alias: 'password', describe: "set basic authentication password", demandOption: false })
-        .option("S", { alias: 'ssl', describe: "Enabel https", type: "boolean", demandOption: false })
-        .option("C", { alias: 'cert', describe: "Path to ssl cert file", type: "string", demandOption: false })
-        .option("K", { alias: 'key', describe: "Path to ssl key file", type: "string", demandOption: false })
+        .option("S", { alias: 'ssl', describe: "Enabel https", demandOption: false })
+        .option("C", { alias: 'cert', describe: "Path to ssl cert file", demandOption: false })
+        .option("K", { alias: 'key', describe: "Path to ssl key file", demandOption: false })
         .help(true)
         .argv;
 
-    if (options.debug)
-        config.debug = true;
-
-    if (options.onWindowsNativeTerminal) {
-        // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
-        config.qrcode.small = false;
-    }
+    config.debug = options.debug || config.debug;
+    // seems windows os can't support small option on native terminal, refer to https://github.com/gtanner/qrcode-terminal/pull/14/files
+    config.qrcode.small = !options.onWindowsNativeTerminal;
 
     if (options.username && options.password) {
         config.auth.username = options.username;
@@ -162,8 +157,7 @@ var debugLog = (log) => {
     
     if (options.receive) {
         const app = createDefaultApp();
-        let uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
-        console.log(uploadAddress);
+        let uploadAddress = options.ip && options.receivePort ? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${config.defaultReceivePort}/receive`;
         app.use(fileUpload());
 
         const form = fs.readFileSync(`${__dirname}/receive-form.html`);
@@ -209,11 +203,11 @@ var debugLog = (log) => {
             startServer(app, options.receivePort, listener);
         else {
             portfinder.getPort({
-                port: 1374,
-                stopPort: 1400
+                port: config.defaultReceivePort,
+                stopPort: config.defaultReceiveStopPort
             }, (err, port) => {
                 options.receivePort = port;
-                uploadAddress = options.ip? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
+                uploadAddress = options.ip ? `${config.ssl.protocol}://${options.ip}:${options.receivePort}/receive`: `${config.ssl.protocol}://${getNetworkAddress()}:${options.receivePort}/receive`;
                 startServer(app, options.receivePort, listener);
             });
         }
@@ -236,7 +230,7 @@ var debugLog = (log) => {
 
         const time = new Date().getTime();
         const urlInfo = `:${options.port}${file}?time=${time}`;
-        const shareAddress = options.ip? `${config.ssl.protocol}://${options.ip}${urlInfo}`: `${config.ssl.protocol}://${getNetworkAddress()}${urlInfo}`;
+        const shareAddress = options.ip ? `${config.ssl.protocol}://${options.ip}${urlInfo}`: `${config.ssl.protocol}://${getNetworkAddress()}${urlInfo}`;
         
         console.log(usageMessage);
 
@@ -253,10 +247,9 @@ var debugLog = (log) => {
         startServer(shareApp, options.port, listener);
     else {
         portfinder.getPort({
-            port: 7478,
-            stopPort: 8000
+            port: config.defaultAppPort,
+            stopPort: config.defaultAppStopPort
         }, (err, port) => {
-            console.log(213);
             options.port = port;
             startServer(shareApp, options.port, listener);
         });
