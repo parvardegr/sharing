@@ -1,5 +1,6 @@
 const http = require('http');
 
+
 module.exports = { 
     debug: false,
     qrcode: {
@@ -14,8 +15,8 @@ module.exports = {
         protocol: 'http',
         option: {}
     },
-    defaultAppPort: 7478,
-    defaultAppStopPort: 8000,
-    defaultReceivePort: 1374,
-    defaultReceiveStopPort: 1400, 
+    portfinder: {
+        port: 7478,
+        stopPort: 8000
+    }
 };

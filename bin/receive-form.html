@@ -44,15 +44,14 @@
             <div id="share-container">
                 <label id="share" for="file-input" class="btn">Share file🚀</label>
             </div>
-            <!-- <label id="share" for="file-input" class="btn">Share File!</label> -->
             <input id="file-input" type="file" name="selected" style="visibility:hidden; display:none;"/>
-            <!-- <input type='submit' value='Share file!' /> -->
         </form>
     </body>
 
     <script>
         document.getElementById("file-input").onchange = function() {
             document.getElementById("uploadForm").submit();
+            document.getElementById("share").innerText = "Sending...";
         };
     </script>
 
