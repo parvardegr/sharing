@@ -8,6 +8,7 @@
 - share your clipboard
 - receive file
 - support basic authentication
+- support ssl
 
 ## Usage
 *sharing is depend on node v16.x or later*
@@ -58,5 +59,6 @@ Options:
 ```
 
 ## TODO
-- https
+- self-signed certificate creation
 - new banner screenshot (also show the --receive functionality)
+- add a button to visit upload directory directly in receive-form
