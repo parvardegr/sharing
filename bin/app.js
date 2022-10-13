@@ -9,7 +9,6 @@ const config = require('./config');
 const utils = require('./utils');
 
 const start = ({ port, path, receive, onStart, postUploadRedirectUrl, shareAddress }) => {
-    console.log(shareAddress);
     const app = express();
 
     // Basic Auth
