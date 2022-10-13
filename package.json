@@ -43,7 +43,7 @@
     "express-fileupload": "^1.4.0",
     "portfinder": "^1.0.32",
     "qrcode-terminal": "^0.12.0",
-    "serve-handler": "^6.1.3",
+    "serve-handler": "github:parvardegr/serve-handler#feature/support-url-prefix",
     "yargs": "^17.6.0"
   }
 }
