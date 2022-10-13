@@ -215,7 +215,9 @@ var debugLog = (log) => {
     }
 
     const shareApp = createDefaultApp();
-    shareApp.get('*', (req, res) => handler(req, res, { public: path }));
+    shareApp.get('/share/*', (req, res) => {
+        handler(req, res, { public: path, etag: true, prefix: '/share' });
+    });
 
     const listener = () => {
         let usageMessage = `Scan the QR-Code to access '${path}' directory on your phone`;
