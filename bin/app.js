@@ -26,7 +26,7 @@ const start = ({ port, path, receive, onStart, postUploadRedirectUrl, shareAddre
 
         app.get('/receive', (req, res) => {
             const form = fs.readFileSync(`${__dirname}/receive-form.html`);
-            res.send(form.toString().replace(/btn-list" href=""/, `btn-list" href="${shareAddress}"`));
+            res.send(form.toString().replace(/\{shareAddress\}/, shareAddress));
         });
 
         app.post('/upload', (req, res) => {
