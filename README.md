@@ -61,4 +61,3 @@ Options:
 ## TODO
 - self-signed certificate creation
 - new banner screenshot (also show the --receive functionality)
-- add a button to visit upload directory directly in receive-form

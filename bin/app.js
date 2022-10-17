@@ -8,8 +8,7 @@ const _path = require("path");
 const config = require('./config');
 const utils = require('./utils');
 
-
-const start = ({ port, path, receive, onStart, postUploadRedirectUrl }) => {
+const start = ({ port, path, receive, onStart, postUploadRedirectUrl, shareAddress }) => {
     const app = express();
 
     // Basic Auth
@@ -27,7 +26,7 @@ const start = ({ port, path, receive, onStart, postUploadRedirectUrl }) => {
 
         app.get('/receive', (req, res) => {
             const form = fs.readFileSync(`${__dirname}/receive-form.html`);
-            res.send(form.toString());
+            res.send(form.toString().replace(/\{shareAddress\}/, shareAddress));
         });
 
         app.post('/upload', (req, res) => {
@@ -57,8 +56,8 @@ const start = ({ port, path, receive, onStart, postUploadRedirectUrl }) => {
             });
         });
     }
-
-    app.get('/share/*', (req, res) => {
+    
+    app.use('/share', (req, res) => {
         handler(req, res, { public: path, etag: true, prefix: '/share' });
     });
 

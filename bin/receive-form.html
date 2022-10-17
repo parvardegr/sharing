@@ -7,31 +7,41 @@
     </head>
 
     <style type="text/css">
-        #share {
-            box-sizing: content-box;
-            font-family: monospace;
-            color: #181818;
-            font-size: 32px;
-            font-size: 5vw;
-            background-color: blueviolet;
-            padding: 16px;
-            font-weight: bolder;
-            text-align: center;
-            border: 5px solid #181818;
-        }
-        #share-container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
         body {
             background-color: #005bff47;
             margin: 0;
+        }
+
+        #uploadForm {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        #share-container {
+            padding: 16px;
+            background-color: blueviolet;
+            border: 5px solid #181818;
+            font-size: 32px;
+            font-size: 5vw;
+            font-family: monospace;
+            box-sizing: content-box;
+            font-weight: bolder;
+            text-align: center;
+            color: #181818;
+        }
+        
+        a {
+            font-size: 32px;
+            font-size: 5vw;
+            font-family: monospace;
+            font-weight: bolder;
+        }
+
+        #share-container {
+            margin-bottom: 20px;
         }
     </style>
 
@@ -44,6 +54,7 @@
             <div id="share-container">
                 <label id="share" for="file-input" class="btn">Share file🚀</label>
             </div>
+            <a href="{shareAddress}" target="_blank">View directory📁<a/>
             <input id="file-input" type="file" name="selected" style="visibility:hidden; display:none;"/>
         </form>
     </body>

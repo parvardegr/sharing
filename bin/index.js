@@ -124,7 +124,7 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
     const uploadAddress = options.ip ? `${config.ssl.protocol}://${options.ip}:${options.port}/receive`: `${config.ssl.protocol}://${utils.getNetworkAddress()}:${options.port}/receive`;
 
     const time = new Date().getTime();
-    const file = encodeURIComponent(fileName);
+    const file = fileName ? encodeURIComponent(fileName) : '';
     const urlInfo = `:${options.port}/share/${file}?time=${time}`;
     const shareAddress = options.ip ? `${config.ssl.protocol}://${options.ip}${urlInfo}`: `${config.ssl.protocol}://${utils.getNetworkAddress()}${urlInfo}`;    
 
@@ -151,10 +151,11 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
 
     app.start({ 
         port: options.port,
-        path: path,
+        path,
         receive: options.receive,
-        onStart: onStart,
-        postUploadRedirectUrl: uploadAddress 
+        onStart,
+        postUploadRedirectUrl: uploadAddress,
+        shareAddress
     });
 
 })();
