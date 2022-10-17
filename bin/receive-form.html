@@ -20,8 +20,7 @@
             flex-direction: column;
         }
 
-        #share-container,
-        .btn-list {
+        #share-container {
             padding: 16px;
             background-color: blueviolet;
             border: 5px solid #181818;
@@ -32,6 +31,13 @@
             font-weight: bolder;
             text-align: center;
             color: #181818;
+        }
+        
+        a {
+            font-size: 32px;
+            font-size: 5vw;
+            font-family: monospace;
+            font-weight: bolder;
         }
 
         #share-container {
@@ -48,7 +54,7 @@
             <div id="share-container">
                 <label id="share" for="file-input" class="btn">Share file🚀</label>
             </div>
-            <a class="btn-list" href="{shareAddress}" target="_blank">View directory📁<a/>
+            <a href="{shareAddress}" target="_blank">View directory📁<a/>
             <input id="file-input" type="file" name="selected" style="visibility:hidden; display:none;"/>
         </form>
     </body>
