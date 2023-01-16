@@ -37,7 +37,8 @@ const start = ({ port, path, receive, onStart, postUploadRedirectUrl, shareAddre
 
             const selectedFile = req.files.selected;
 
-            const uploadPath = _path.resolve(__dirname, path) + '/' + selectedFile.name;
+            const selectedFileName = new Buffer(selectedFile.name, 'ascii').toString('utf8');
+            const uploadPath = _path.resolve(__dirname, path) + '/' + selectedFileName;
             utils.debugLog(`upload path: ${uploadPath}`);
 
             selectedFile.mv(uploadPath).then(err => {
