@@ -23,6 +23,7 @@
   "author": "amin rostami",
   "license": "MIT",
   "dependencies": {
+    "localtunnel": "^2.0.2",
     "qrcode-terminal": "^0.12.0",
     "serve": "^14.0.1",
     "yargs": "^17.6.0"
