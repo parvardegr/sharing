@@ -48,7 +48,7 @@ Options:
   -p, --port                        Change default port
       --ip                          Your machine public ip address
   -c, --clipboard                   Share Clipboard
-  -r, --tmpdir                      Clipboard Temporary files directory
+  -t, --tmpdir                      Clipboard Temporary files directory
   -w, --on-windows-native-terminal  Enable QR-Code support for windows native
                                     terminal
   -r, --receive                     Receive files
