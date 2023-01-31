@@ -80,8 +80,7 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
         };
     }
 
-    if (options.clipboard) {
-
+    const updateClipboardData = async () => {
         const clipboard = await import('clipboardy');
         
         const data = clipboard.default.readSync();
@@ -98,7 +97,10 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
             fs.writeFileSync('.clipboard-tmp', data);
             path = _path.resolve('.clipboard-tmp');
         }
+    }
 
+    if (options.clipboard) {
+        await updateClipboardData();
     } else {
         path = options._[0];
     }
@@ -153,6 +155,8 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
         port: options.port,
         path,
         receive: options.receive,
+        clipboard: options.clipboard,
+        updateClipboardData,
         onStart,
         postUploadRedirectUrl: uploadAddress,
         shareAddress

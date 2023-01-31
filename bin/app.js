@@ -8,7 +8,7 @@ const _path = require("path");
 const config = require('./config');
 const utils = require('./utils');
 
-const start = ({ port, path, receive, onStart, postUploadRedirectUrl, shareAddress }) => {
+const start = ({ port, path, receive, clipboard, updateClipboardData, onStart, postUploadRedirectUrl, shareAddress }) => {
     const app = express();
 
     // Basic Auth
@@ -57,7 +57,10 @@ const start = ({ port, path, receive, onStart, postUploadRedirectUrl, shareAddre
         });
     }
     
-    app.use('/share', (req, res) => {
+    app.use('/share', async (req, res) => {
+      if (clipboard) {
+        await updateClipboardData();
+      }
         handler(req, res, { public: path, etag: true, prefix: '/share' });
     });
 
