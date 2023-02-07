@@ -88,8 +88,11 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
         const data = clipboard.default.readSync();
         utils.debugLog(`clipboard data:\n ${data}`);
 
-        let filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
-        filePath = decodeURI(filePath);
+        let filePath = data;
+        if (data.indexOf('file://')) {
+          filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
+          try { filePath = decodeURI(filePath); } catch (err) {}
+        }
         utils.debugLog(`clipboard file path:\n ${filePath}`);
 
         if (fs.existsSync(filePath)) {
