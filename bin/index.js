@@ -36,6 +36,7 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
         .option("p", { alias: 'port', describe: "Change default port", demandOption: false })
         .option("ip", { describe: "Your machine public ip address", demandOption: false })
         .option("c", { alias: 'clipboard', describe: "Share Clipboard", demandOption: false })
+        .option("t", { alias: 'tmpdir', describe: "Clipboard Temporary files directory", demandOption: false })
         .option("w", { alias: 'on-windows-native-terminal', describe: "Enable QR-Code support for windows native terminal", demandOption: false })
         .option("r", { alias: 'receive', describe: "Receive files", demandOption: false })
         .option("U", { default: 'user', alias: 'username', describe: "set basic authentication username", demandOption: false })
@@ -87,16 +88,20 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
         const data = clipboard.default.readSync();
         utils.debugLog(`clipboard data:\n ${data}`);
 
-        let filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
-        filePath = decodeURI(filePath);
+        let filePath = data;
+        if (data.indexOf('file://')) {
+          filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
+          try { filePath = decodeURI(filePath); } catch (err) {}
+        }
         utils.debugLog(`clipboard file path:\n ${filePath}`);
 
         if (fs.existsSync(filePath)) {
             utils.debugLog(`clipboard file ${filePath} found`);
             path = filePath;
         } else {
-            fs.writeFileSync('.clipboard-tmp', data);
-            path = _path.resolve('.clipboard-tmp');
+            const outPath = options.tmpdir ? _path.join(options.tmpdir, '.clipboard-tmp') : '.clipboard-tmp';
+            fs.writeFileSync(outPath, data);
+            path = _path.resolve(outPath);
         }
 
     } else {
