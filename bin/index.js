@@ -89,7 +89,7 @@ $ sharing /path/to/file-or-directory -U user -P password  # also works with --re
         utils.debugLog(`clipboard data:\n ${data}`);
 
         let filePath = data;
-        if (data.indexOf('file://')) {
+        if (data.indexOf('file://') !== -1) {
           filePath = data.substring(data.indexOf('file://') + 'file://'.length).trim();
           try { filePath = decodeURI(filePath); } catch (err) {}
         }
