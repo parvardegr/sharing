@@ -60,5 +60,6 @@ Options:
 ```
 
 ## TODO
+- zip the file before transferring it (sharing --zip /path/to/file)
 - self-signed certificate creation
 - new banner screenshot (also show the --receive functionality)
