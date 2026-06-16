@@ -152,6 +152,8 @@ async function integrationTests() {
                         const res = await request('http://127.0.0.1:' + receivePort + '/receive');
                         assert.strictEqual(res.status, 200);
                         assert.ok(res.data.indexOf('uploadForm') !== -1, 'Response should contain upload form');
+                        assert.ok(res.data.indexOf('progress-bar') !== -1, 'Response should contain progress bar');
+                        assert.ok(res.data.indexOf('progress-text') !== -1, 'Response should contain progress text');
                         resolve();
                     } catch (err) {
                         reject(err);
