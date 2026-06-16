@@ -106,10 +106,11 @@ function request(url) {
 }
 
 async function integrationTests() {
-    // Create a temp directory with a test file
+    // Create a temp directory with test files
     const tmpDir = path.join(__dirname, '.tmp-test-dir');
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
     fs.writeFileSync(path.join(tmpDir, 'hello.txt'), 'hello world');
+    fs.writeFileSync(path.join(tmpDir, 'File #1.txt'), 'hashtag content');
 
     const port = 19876;
 
@@ -138,8 +139,59 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('file with hashtag in name is accessible via encoded URL', async () => {
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: port + 1,
+                sharePath: tmpDir,
+                receive: false,
+                clipboard: false,
+                updateClipboardData: null,
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + (port + 1) + '/share/File%20%231.txt');
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(res.data, 'hashtag content');
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                postUploadRedirectUrl: '',
+                shareAddress: '',
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('directory listing encodes hashtag in file links', async () => {
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: port + 2,
+                sharePath: tmpDir,
+                receive: false,
+                clipboard: false,
+                updateClipboardData: null,
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + (port + 2) + '/share/');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.data.includes('%23'), 'Directory listing should encode # as %23');
+                        assert.ok(!/href="[^"]*#[^"]*"/.test(res.data), 'Directory listing should not have raw # in href');
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                postUploadRedirectUrl: '',
+                shareAddress: '',
+            });
+            servers.push(server);
+        });
+    });
+
     await asyncTest('receive form is served when receive is enabled', async () => {
-        const receivePort = port + 1;
+        const receivePort = port + 3;
         await new Promise((resolve, reject) => {
             const server = app.start({
                 port: receivePort,
@@ -165,7 +217,7 @@ async function integrationTests() {
     });
 
     await asyncTest('upload without files returns 400', async () => {
-        const uploadPort = port + 2;
+        const uploadPort = port + 4;
         await new Promise((resolve, reject) => {
             const server = app.start({
                 port: uploadPort,
@@ -231,6 +283,7 @@ async function integrationTests() {
     closeServers();
     try {
         fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
+        fs.unlinkSync(path.join(tmpDir, 'File #1.txt'));
         fs.rmdirSync(tmpDir);
     } catch (e) { /* ignore */ }
 }
