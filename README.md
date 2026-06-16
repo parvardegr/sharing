@@ -56,8 +56,23 @@ Options:
   -U, --username                    set basic authentication username
                                                                [default: "user"]
   -P, --password                    set basic authentication password
+      --tunnel                      Show guide for exposing your share over the
+                                    internet using tunnel services
       --help                        Show help                          [boolean]
 ```
+
+## Sharing Over the Internet (Tunneling)
+
+If you don't have a public IP address, you can use a free tunnel service to expose your share to the internet. Run `sharing --tunnel` for a quick setup guide.
+
+Start sharing first, then in a separate terminal create a tunnel to your local port:
+
+- **ngrok**: `ngrok http 7478` — [Getting started](https://ngrok.com/docs/getting-started/)
+- **localtunnel**: `npx localtunnel --port 7478` — [Docs](https://theboroer.github.io/localtunnel-www/)
+- **cloudflared**: `cloudflared tunnel --url http://localhost:7478` — [Docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+- **ssh**: `ssh -R 80:localhost:7478 your-server`
+
+Replace `7478` with the port shown when you start sharing.
 
 ## TODO
 - zip the file before transferring it (sharing --zip /path/to/file)
