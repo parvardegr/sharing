@@ -47,7 +47,7 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
             selectedFile.mv(uploadPath)
                 .then(() => {
                     console.log('File received: ' + uploadPath);
-                    res.send('File shared successfully at ' + uploadPath);
+                    res.type('text').send('File shared successfully at ' + uploadPath);
                 })
                 .catch((err) => {
                     res.status(500).send(err.message || String(err));
