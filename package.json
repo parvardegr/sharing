@@ -8,7 +8,7 @@
     "start": "node bin/index.js"
   },
   "engines": {
-    "node": ">=10.0.0"
+    "node": ">=14.0.0"
   },
   "keywords": [
     "file sharing",

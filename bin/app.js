@@ -68,7 +68,8 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
     });
 
     // Listen
-    config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, onStart);
+    const server = config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, onStart);
+    return server;
 };
 
 module.exports = { start };

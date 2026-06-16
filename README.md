@@ -11,7 +11,7 @@
 - support ssl
 
 ## Usage
-*sharing works with Node.js v10 or later*
+*sharing works with Node.js v14 or later*
 1. Install
     - `npm install -g easy-sharing`
 2. Share a file or directory

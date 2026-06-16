@@ -15,6 +15,7 @@ const app = require('../bin/app');
 
 let passed = 0;
 let failed = 0;
+const servers = [];
 
 function test(name, fn) {
     try {
@@ -40,6 +41,12 @@ async function asyncTest(name, fn) {
     }
 }
 
+function closeServers() {
+    servers.forEach(function (s) {
+        try { s.close(); } catch (e) { /* ignore */ }
+    });
+}
+
 // ---------- utils tests ----------
 console.log('\nutils.js');
 
@@ -51,7 +58,6 @@ test('getNetworkAddress returns a string', () => {
 test('getNetworkAddress returns a valid IPv4 address', () => {
     const addr = utils.getNetworkAddress();
     const parts = addr.split('.');
-    // Either a real IPv4 or the fallback 127.0.0.1
     assert.strictEqual(parts.length, 4);
 });
 
@@ -109,9 +115,7 @@ async function integrationTests() {
 
     await asyncTest('serves a directory and file is downloadable', async () => {
         await new Promise((resolve, reject) => {
-            let server;
-
-            app.start({
+            const server = app.start({
                 port: port,
                 sharePath: tmpDir,
                 receive: false,
@@ -130,13 +134,14 @@ async function integrationTests() {
                 postUploadRedirectUrl: '',
                 shareAddress: '',
             });
+            servers.push(server);
         });
     });
 
     await asyncTest('receive form is served when receive is enabled', async () => {
         const receivePort = port + 1;
         await new Promise((resolve, reject) => {
-            app.start({
+            const server = app.start({
                 port: receivePort,
                 sharePath: tmpDir,
                 receive: true,
@@ -155,13 +160,14 @@ async function integrationTests() {
                 postUploadRedirectUrl: 'http://127.0.0.1:' + receivePort + '/receive',
                 shareAddress: 'http://127.0.0.1:' + receivePort + '/share/',
             });
+            servers.push(server);
         });
     });
 
     await asyncTest('upload without files returns 400', async () => {
         const uploadPort = port + 2;
         await new Promise((resolve, reject) => {
-            app.start({
+            const server = app.start({
                 port: uploadPort,
                 sharePath: tmpDir,
                 receive: true,
@@ -196,13 +202,14 @@ async function integrationTests() {
                 postUploadRedirectUrl: '',
                 shareAddress: '',
             });
+            servers.push(server);
         });
     });
 
     // CLI help test
     await asyncTest('CLI --help exits with code 0', async () => {
         await new Promise((resolve, reject) => {
-            execFile(process.execPath, [path.join(__dirname, '..', 'bin', 'index.js'), '--help'], (err, stdout, stderr) => {
+            execFile(process.execPath, [path.join(__dirname, '..', 'bin', 'index.js'), '--help'], (err, stdout) => {
                 if (err) return reject(err);
                 assert.ok(stdout.indexOf('Share file or directory') !== -1, 'Help output should contain usage info');
                 resolve();
@@ -221,6 +228,7 @@ async function integrationTests() {
     });
 
     // Cleanup
+    closeServers();
     try {
         fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
         fs.rmdirSync(tmpDir);
