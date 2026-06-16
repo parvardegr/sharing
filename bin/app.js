@@ -27,7 +27,11 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
         app.use(fileUpload());
 
         app.get('/receive', (req, res) => {
-            res.send(receiveFormHtml.replace(/\{shareAddress\}/g, shareAddress));
+            res.send(
+                receiveFormHtml
+                    .replace(/\{shareAddress\}/g, shareAddress)
+                    .replace(/\{postUploadRedirectUrl\}/g, postUploadRedirectUrl)
+            );
         });
 
         app.post('/upload', (req, res) => {
@@ -43,12 +47,7 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
             selectedFile.mv(uploadPath)
                 .then(() => {
                     console.log('File received: ' + uploadPath);
-                    res.send(
-                        '<script>' +
-                        'window.alert("Shared at ' + uploadPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '");' +
-                        'window.location.href = "' + postUploadRedirectUrl + '";' +
-                        '</script>'
-                    );
+                    res.type('text').send('File shared successfully at ' + uploadPath);
                 })
                 .catch((err) => {
                     res.status(500).send(err.message || String(err));
