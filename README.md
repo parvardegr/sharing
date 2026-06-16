@@ -63,9 +63,13 @@ Options:
 
 ## Sharing Over the Internet (Tunneling)
 
-If you don't have a public IP address, you can use a free tunnel service to expose your share to the internet. Run `sharing --tunnel` for a quick setup guide.
+If you are on a local network (home Wi-Fi, office, hotel, etc.) and want to share files with someone who is **not** on the same network — for example, sharing photos from your laptop with a friend across the city — you can use a tunnel service to make your share accessible over the internet, without needing a public IP address.
 
-Start sharing first, then in a separate terminal create a tunnel to your local port:
+Run `sharing --tunnel` for a quick setup guide, or follow the steps below:
+
+1. Start sharing as usual: `sharing /path/to/files`
+2. In a separate terminal, run one of the tunnel commands below
+3. Share the public URL the tunnel service gives you
 
 - **ngrok**: `ngrok http 7478` — [Getting started](https://ngrok.com/docs/getting-started/)
 - **localtunnel**: `npx localtunnel --port 7478` — [Docs](https://theboroer.github.io/localtunnel-www/)
