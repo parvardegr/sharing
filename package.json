@@ -24,6 +24,9 @@
     "receive file",
     "send file"
   ],
+  "files": [
+    "bin/"
+  ],
   "bin": {
     "sharing": "./bin/index.js",
     "easy-sharing": "./bin/index.js"

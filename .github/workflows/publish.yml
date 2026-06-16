@@ -34,6 +34,6 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Publish package on NPM 📦
         run: npm publish --provenance --access public
