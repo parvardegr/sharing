@@ -25,8 +25,8 @@
     "send file"
   ],
   "bin": {
-    "sharing": "./bin/index.js",
-    "easy-sharing": "./bin/index.js"
+    "sharing": "bin/index.js",
+    "easy-sharing": "bin/index.js"
   },
   "author": "amin rostami",
   "license": "MIT",
