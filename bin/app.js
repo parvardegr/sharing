@@ -62,6 +62,22 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
         // Strip the /share prefix so serve-handler resolves files from the root of sharePath
         const originalUrl = req.url;
         req.url = req.url.replace(/^\/share/, '') || '/';
+
+        // Wrap response to fix special characters in directory listing URLs.
+        // serve-handler does not percent-encode characters like '#' in href
+        // attributes, which causes browsers to misinterpret them (e.g. '#' is
+        // treated as a fragment delimiter, leading to 404 errors).
+        const originalEnd = res.end.bind(res);
+        res.end = function (body, encoding) {
+            if (typeof body === 'string' && res.getHeader('content-type') && String(res.getHeader('content-type')).includes('text/html')) {
+                body = body.replace(/href="([^"]*)"/g, (match, href) => {
+                    const encoded = href.replace(/#/g, '%23');
+                    return 'href="' + encoded + '"';
+                });
+            }
+            return originalEnd(body, encoding);
+        };
+
         handler(req, res, { public: sharePath, etag: true });
         req.url = originalUrl;
     });
