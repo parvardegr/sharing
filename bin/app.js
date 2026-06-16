@@ -3,12 +3,14 @@ const fileUpload = require('express-fileupload');
 const basicAuth = require('express-basic-auth');
 const handler = require('serve-handler');
 const fs = require('fs');
-const _path = require("path");
+const path = require('path');
 
 const config = require('./config');
 const utils = require('./utils');
 
-const start = ({ port, path, receive, clipboard, updateClipboardData, onStart, postUploadRedirectUrl, shareAddress }) => {
+const receiveFormHtml = fs.readFileSync(path.join(__dirname, 'receive-form.html'), 'utf8');
+
+const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onStart, postUploadRedirectUrl, shareAddress }) => {
     const app = express();
 
     // Basic Auth
@@ -16,7 +18,7 @@ const start = ({ port, path, receive, clipboard, updateClipboardData, onStart, p
         app.use(basicAuth({
             challenge: true,
             realm: 'sharing',
-            users: { [config.auth.username]: config.auth.password }
+            users: { [config.auth.username]: config.auth.password },
         }));
     }
 
@@ -25,51 +27,49 @@ const start = ({ port, path, receive, clipboard, updateClipboardData, onStart, p
         app.use(fileUpload());
 
         app.get('/receive', (req, res) => {
-            const form = fs.readFileSync(`${__dirname}/receive-form.html`);
-            res.send(form.toString().replace(/\{shareAddress\}/, shareAddress));
+            res.send(receiveFormHtml.replace(/\{shareAddress\}/g, shareAddress));
         });
 
         app.post('/upload', (req, res) => {
             if (!req.files || Object.keys(req.files).length === 0) {
-                res.status(400).send('No files were received.');
-                return;
+                return res.status(400).send('No files were received.');
             }
 
             const selectedFile = req.files.selected;
+            const selectedFileName = Buffer.from(selectedFile.name, 'ascii').toString('utf8');
+            const uploadPath = path.join(path.resolve(sharePath), selectedFileName);
+            utils.debugLog('upload path: ' + uploadPath);
 
-            const selectedFileName = new Buffer(selectedFile.name, 'ascii').toString('utf8');
-            const uploadPath = _path.resolve(__dirname, path) + '/' + selectedFileName;
-            utils.debugLog(`upload path: ${uploadPath}`);
-
-            selectedFile.mv(uploadPath).then(err => {
-                if (err) {
-                    return res.status(500).send(err);
-                }
-
-                console.log(`File recevied: ${uploadPath}`)
-
-                res.send(`
-                    <script>
-                        window.alert('Shared at ${uploadPath}');
-                        window.location.href = '${postUploadRedirectUrl}';
-                    </script>
-                `);
-            });
+            selectedFile.mv(uploadPath)
+                .then(() => {
+                    console.log('File received: ' + uploadPath);
+                    res.send(
+                        '<script>' +
+                        'window.alert("Shared at ' + uploadPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '");' +
+                        'window.location.href = "' + postUploadRedirectUrl + '";' +
+                        '</script>'
+                    );
+                })
+                .catch((err) => {
+                    res.status(500).send(err.message || String(err));
+                });
         });
     }
-    
-    app.use('/share', async (req, res) => {
-      if (clipboard) {
-        await updateClipboardData();
-      }
-        handler(req, res, { public: path, etag: true, prefix: '/share' });
+
+    app.use('/share', (req, res) => {
+        if (clipboard && updateClipboardData) {
+            updateClipboardData();
+        }
+        // Strip the /share prefix so serve-handler resolves files from the root of sharePath
+        const originalUrl = req.url;
+        req.url = req.url.replace(/^\/share/, '') || '/';
+        handler(req, res, { public: sharePath, etag: true });
+        req.url = originalUrl;
     });
 
     // Listen
-    config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, onStart);
-
-}
-
-module.exports = { 
-    start
+    const server = config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, onStart);
+    return server;
 };
+
+module.exports = { start };

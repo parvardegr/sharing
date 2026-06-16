@@ -1,11 +1,14 @@
 {
   "name": "easy-sharing",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "description": "Sharing is a command-line tool to share directories and files from the CLI to iOS and Android devices without the need of an extra client app",
   "main": "bin/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node test/test.js",
     "start": "node bin/index.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   },
   "keywords": [
     "file sharing",
@@ -27,7 +30,6 @@
   },
   "author": "amin rostami",
   "license": "MIT",
-  "preferGlobal": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/parvardegr/sharing.git"
@@ -37,13 +39,13 @@
   },
   "homepage": "https://github.com/parvardegr/sharing#readme",
   "dependencies": {
-    "clipboardy": "^3.0.0",
-    "express": "^4.18.1",
+    "clipboardy": "^2.3.0",
+    "express": "^4.21.2",
     "express-basic-auth": "^1.2.1",
     "express-fileupload": "^1.4.0",
     "portfinder": "^1.0.32",
     "qrcode-terminal": "^0.12.0",
-    "serve-handler": "github:parvardegr/serve-handler#feature/support-url-prefix",
+    "serve-handler": "^6.1.6",
     "yargs": "^17.6.0"
   }
 }
