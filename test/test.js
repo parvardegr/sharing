@@ -281,6 +281,18 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('CLI --tunnel exits with code 0 and shows tunnel guide', async () => {
+        await new Promise((resolve, reject) => {
+            execFile(process.execPath, [path.join(__dirname, '..', 'bin', 'index.js'), '--tunnel'], (err, stdout) => {
+                if (err) return reject(err);
+                assert.ok(stdout.indexOf('ngrok') !== -1, 'Tunnel guide should mention ngrok');
+                assert.ok(stdout.indexOf('localtunnel') !== -1, 'Tunnel guide should mention localtunnel');
+                assert.ok(stdout.indexOf('cloudflared') !== -1, 'Tunnel guide should mention cloudflared');
+                resolve();
+            });
+        });
+    });
+
     // Cleanup
     closeServers();
     try {

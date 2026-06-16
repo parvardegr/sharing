@@ -45,6 +45,7 @@ const usage = [
         .option('S', { alias: 'ssl', describe: 'Enable https', type: 'boolean' })
         .option('C', { alias: 'cert', describe: 'Path to ssl cert file', type: 'string' })
         .option('K', { alias: 'key', describe: 'Path to ssl key file', type: 'string' })
+        .option('tunnel', { describe: 'Show guide for exposing your share over the internet using tunnel services', type: 'boolean' })
         .help(true)
         .argv;
 
@@ -52,6 +53,45 @@ const usage = [
 
     // Windows native terminal can't render small QR codes
     config.qrcode.small = !options.onWindowsNativeTerminal;
+
+    if (options.tunnel) {
+        const tunnelGuide = [
+            '',
+            'Tunnel Guide: Expose your share over the internet',
+            '='.repeat(50),
+            '',
+            'When to use a tunnel:',
+            '  You are on a local network (home Wi-Fi, office, hotel, etc.) and',
+            '  want to share files with someone who is NOT on the same network.',
+            '  For example, sharing photos from your laptop at home with a friend',
+            '  across the city — without needing a public IP address.',
+            '',
+            'How it works:',
+            '  1. Start sharing as usual:  $ sharing /path/to/files',
+            '  2. In a separate terminal, run one of the tunnel commands below.',
+            '  3. Share the public URL the tunnel service gives you.',
+            '',
+            'Tunnel services:',
+            '',
+            '1. ngrok (https://ngrok.com/docs/getting-started/)',
+            '   $ ngrok http {port}',
+            '',
+            '2. localtunnel (https://theboroer.github.io/localtunnel-www/)',
+            '   $ npx localtunnel --port {port}',
+            '',
+            '3. cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)',
+            '   $ cloudflared tunnel --url http://localhost:{port}',
+            '',
+            '4. ssh reverse tunnel',
+            '   $ ssh -R 80:localhost:{port} your-server',
+            '',
+            'Replace {port} with the port number shown when you start sharing',
+            '(default: 7478).',
+            '',
+        ].join('\n');
+        console.log(tunnelGuide);
+        process.exit(0);
+    }
 
     if (options.username && options.password) {
         config.auth.username = options.username;
