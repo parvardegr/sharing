@@ -72,6 +72,27 @@ test('debugLog does not throw when debug is true', () => {
     config.debug = false;
 });
 
+test('scoreInterface prefers a LAN address over a docker/virtual one', () => {
+    const lan = utils.scoreInterface({ name: 'en0', address: '192.168.1.20' });
+    const docker = utils.scoreInterface({ name: 'docker0', address: '172.17.0.1' });
+    const vpn = utils.scoreInterface({ name: 'utun3', address: '10.8.0.2' });
+    assert.ok(lan > docker, 'LAN interface should outrank docker');
+    assert.ok(lan > vpn, 'LAN interface should outrank a VPN tunnel');
+});
+
+test('getNetworkInterfaces returns an array of {name,address}', () => {
+    const list = utils.getNetworkInterfaces();
+    assert.ok(Array.isArray(list));
+    list.forEach((c) => {
+        assert.strictEqual(typeof c.name, 'string');
+        assert.strictEqual(typeof c.address, 'string');
+    });
+});
+
+test('getNetworkAddress falls back when a missing interface is requested', () => {
+    assert.strictEqual(typeof utils.getNetworkAddress('definitely-not-an-iface'), 'string');
+});
+
 // ---------- config tests ----------
 console.log('\nconfig.js');
 

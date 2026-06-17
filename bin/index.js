@@ -42,6 +42,7 @@ const usage = [
         .option('debug', { describe: 'Enable debug logging', type: 'boolean', default: false })
         .option('p', { alias: 'port', describe: 'Set the server port (default: auto-assigned)', type: 'number' })
         .option('ip', { describe: 'Specify your machine\'s public IP address', type: 'string' })
+        .option('i', { alias: 'interface', describe: 'Network interface/adapter name to advertise (e.g. en0, eth0)', type: 'string' })
         .option('c', { alias: 'clipboard', describe: 'Share clipboard content', type: 'boolean' })
         .option('t', { alias: 'tmpdir', describe: 'Set temporary directory for clipboard files', type: 'string' })
         .option('w', { alias: 'on-windows-native-terminal', describe: 'Enable QR code rendering in Windows native terminal', type: 'boolean' })
@@ -186,7 +187,8 @@ const usage = [
         options.port = await portfinder.getPortPromise(config.portfinder);
     }
 
-    const host = options.ip || utils.getNetworkAddress();
+    const interfaceCandidates = utils.getNetworkInterfaces();
+    const host = options.ip || utils.getNetworkAddress(options.interface);
     const protocol = config.ssl.protocol;
     const baseUrl = protocol + '://' + host + ':' + options.port;
 
@@ -215,6 +217,20 @@ const usage = [
         console.log(usageMessage);
         qrcode.generate(shareAddress, config.qrcode);
         console.log('access link: ' + shareAddress);
+
+        // If several network addresses exist and the user didn't pin one, surface
+        // them so a wrong-interface guess is easy to correct.
+        if (!options.ip && !options.interface && interfaceCandidates.length > 1) {
+            const others = interfaceCandidates
+                .filter((c) => c.address !== host)
+                .map((c) => c.name + ' (' + c.address + ')')
+                .join(', ');
+            if (others) {
+                console.log('\nAdvertising ' + host + '. Other addresses: ' + others);
+                console.log('  (wrong one? pick with --interface <name> or --ip <addr>)');
+            }
+        }
+
         console.log('\nPress ctrl+c to stop sharing\n');
     };
 
