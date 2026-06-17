@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const https = require('https');
+const crypto = require('crypto');
 const path = require('path');
 const yargs = require('yargs');
 const qrcode = require('qrcode-terminal');
@@ -30,6 +31,9 @@ const usage = [
     '',
     '  Share with basic authentication',
     '  $ sharing /path/to/file-or-directory -U user -P password',
+    '',
+    '  Share privately (secret link + password + HTTPS)',
+    '  $ sharing /path/to/file-or-directory --secure',
     '',
     '  Share over HTTPS',
     '  $ sharing /path/to/file-or-directory -S -C cert.pem -K key.pem',
@@ -65,6 +69,8 @@ const openBrowser = (url) => {
         .option('S', { alias: 'ssl', describe: 'Enable HTTPS (auto self-signed cert when -C/-K are not given)', type: 'boolean' })
         .option('C', { alias: 'cert', describe: 'Path to SSL certificate file', type: 'string' })
         .option('K', { alias: 'key', describe: 'Path to SSL private key file', type: 'string' })
+        .option('token', { describe: 'Add a secret token to the share URL so it is unguessable', type: 'boolean' })
+        .option('secure', { describe: 'Private share preset: secret link + generated password + HTTPS', type: 'boolean' })
         .option('once', { describe: 'Stop sharing after the first completed transfer', type: 'boolean' })
         .option('timeout', { describe: 'Auto-stop the share after a duration (e.g. 30s, 10m, 1h)', type: 'string' })
         .option('tunnel', { describe: 'Show guide for sharing over the internet via tunnel services', type: 'boolean' })
@@ -113,11 +119,6 @@ const openBrowser = (url) => {
         ].join('\n');
         console.log(tunnelGuide);
         process.exit(0);
-    }
-
-    if (options.username && options.password) {
-        config.auth.username = options.username;
-        config.auth.password = options.password;
     }
 
     let sharePath;
@@ -196,9 +197,9 @@ const openBrowser = (url) => {
     const interfaceCandidates = utils.getNetworkInterfaces();
     const host = options.ip || utils.getNetworkAddress(options.interface);
 
-    // HTTPS (-S): use the supplied cert/key when both are given, otherwise generate
-    // a self-signed certificate on the fly for the resolved host.
-    const wantHttps = options.ssl;
+    // HTTPS: explicit (-S) or implied by --secure. Use the supplied cert/key when
+    // both are given, otherwise generate a self-signed certificate for the host.
+    const wantHttps = options.ssl || options.secure;
     const usingProvidedCert = Boolean(options.cert && options.key);
     if (wantHttps) {
         if (usingProvidedCert) {
@@ -240,12 +241,32 @@ const openBrowser = (url) => {
         }
     }
 
+    // Secret capability token in the share URL (explicit --token or via --secure).
+    const useToken = options.token || options.secure;
+    const token = useToken ? crypto.randomBytes(8).toString('hex') : '';
+
+    // Basic auth: explicit password, or a generated one when --secure is used.
+    let password = options.password;
+    if (options.secure && !password) {
+        // Fixed length over a fixed alphabet -> deterministic ~95 bits of entropy
+        // (and no dependency on Buffer base64url, which is only on Node >= 14.18).
+        const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        password = Array.from(crypto.randomBytes(16), (b) => ALPHA[b % ALPHA.length]).join('');
+    }
+    const username = options.username || 'user';
+    if (password) {
+        config.auth.username = username;
+        config.auth.password = password;
+    }
+
     const protocol = config.ssl.protocol;
     const baseUrl = protocol + '://' + host + ':' + options.port;
 
+    const sharePrefix = '/share' + (token ? '/' + token : '');
+    const clipboardPrefix = '/clipboard' + (token ? '/' + token : '');
     const uploadAddress = baseUrl + '/receive';
     const file = fileName ? encodeURIComponent(fileName) : '';
-    const shareAddress = clipboardText ? (baseUrl + '/clipboard') : (baseUrl + '/share/' + file);
+    const shareAddress = clipboardText ? (baseUrl + clipboardPrefix) : (baseUrl + sharePrefix + '/' + file);
     const qrPageUrl = baseUrl + '/qr';
 
     const timeoutMs = utils.parseDuration(options.timeout);
@@ -292,8 +313,17 @@ const openBrowser = (url) => {
             }
         }
 
+        if (token) {
+            console.log('\nThis is a secret link — only people you send the exact URL to can open it.');
+        }
+        if (options.secure && password) {
+            console.log('Login —  username: ' + username + '   password: ' + password);
+        }
         if (wantHttps && !usingProvidedCert) {
             console.log('Using a self-signed HTTPS certificate; your browser shows a one-time warning — that is expected.');
+        }
+        if (!config.auth.password && !token) {
+            console.log('\n⚠  Anyone on your network can open this share. Restrict it with -U <user> -P <pass>, or use --secure.');
         }
 
         if (timeoutMs) {
@@ -319,6 +349,7 @@ const openBrowser = (url) => {
         onStart: onStart,
         postUploadRedirectUrl: uploadAddress,
         shareAddress: shareAddress,
+        token: token,
         allowZip: allowZip,
         clipboardText: clipboardText,
         getClipboardData: clipboardText ? getClipboardData : undefined,

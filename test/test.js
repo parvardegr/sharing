@@ -743,6 +743,48 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('a top-level path whose name starts with "share" is reachable', async () => {
+        const p = port + 27;
+        fs.writeFileSync(path.join(tmpDir, 'sharething.txt'), 'share-prefixed');
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + p + '/share/sharething.txt');
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(res.data, 'share-prefixed');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('capability token gates the share and the zip', async () => {
+        const p = port + 28;
+        const tok = 'testtoken123';
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false, allowZip: true, token: tok,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const base = 'http://127.0.0.1:' + p;
+                        assert.strictEqual((await request(base + '/share/' + tok + '/')).status, 200, 'tokened listing loads');
+                        assert.strictEqual((await request(base + '/share/')).status, 404, 'untokened share is 404');
+                        assert.strictEqual((await requestRaw(base + '/zip/' + tok)).status, 200, 'tokened zip works');
+                        assert.strictEqual((await request(base + '/zip')).status, 404, 'untokened zip is 404');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
     // Cleanup
     closeServers();
     try {

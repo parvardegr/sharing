@@ -114,6 +114,7 @@ const start = ({
     postUploadRedirectUrl,
     shareAddress,
     // Optional capabilities (default off -> behaviour identical to before):
+    token,            // capability token; when set the share is mounted under /share/<token>
     allowZip,         // expose the zip route and inject a "Download as .zip" link into listings
     clipboardText,    // serve the clipboard copy page instead of a file download
     getClipboardData, // () => { isPath, text } — re-read live on each request
@@ -121,6 +122,10 @@ const start = ({
     onFinish,         // called when --once completes a transfer (the caller owns process exit)
 } = {}) => {
     const app = express();
+
+    const sharePrefix = '/share' + (token ? '/' + token : '');
+    const clipboardPrefix = '/clipboard' + (token ? '/' + token : '');
+    const zipPrefix = '/zip' + (token ? '/' + token : '');
 
     // Basic Auth
     if (config.auth.username && config.auth.password) {
@@ -264,14 +269,18 @@ const start = ({
             }
             return '';
         };
-        app.get(['/', '/clipboard'], (req, res) => {
+        // When a token is set the page lives only at the secret path; otherwise it is
+        // reachable at both '/' and '/clipboard' for convenience.
+        const pagePaths = token ? [clipboardPrefix] : ['/', '/clipboard'];
+        const txtPath = clipboardPrefix + '.txt';
+        app.get(pagePaths, (req, res) => {
             res.type('html').send(
                 clipboardPageHtml
                     .replace(/\{clipboardText\}/g, escapeHtml(currentText()))
-                    .replace(/\{downloadUrl\}/g, '/clipboard.txt')
+                    .replace(/\{downloadUrl\}/g, txtPath)
             );
         });
-        app.get('/clipboard.txt', (req, res) => {
+        app.get(txtPath, (req, res) => {
             res.on('finish', () => { if (res.statusCode === 200) finishOnce('download'); });
             res.attachment('clipboard.txt');
             res.type('text/plain').send(currentText());
@@ -279,8 +288,10 @@ const start = ({
     }
 
     // Download an entire shared directory (or a sub-folder via ?path=) as a zip.
+    // The capability token (when set) is carried in the path (zipPrefix), matching
+    // the /share design, so it is not exposed in the query string / Referer.
     if (allowZip) {
-        app.get('/zip', (req, res) => {
+        app.get(zipPrefix, (req, res) => {
             const root = path.resolve(sharePath);
             let target = root;
             if (req.query.path) {
@@ -318,7 +329,7 @@ const start = ({
     // In clipboard-text mode there is no real shared directory (sharePath points at
     // the working directory only to satisfy the API), so mounting serve-handler here
     // would leak the cwd. Skip the share mount entirely in that mode.
-    if (!clipboardText) app.use('/share', (req, res) => {
+    if (!clipboardText) app.use(sharePrefix, (req, res) => {
         if (clipboard && updateClipboardData) {
             updateClipboardData();
         }
@@ -329,9 +340,12 @@ const start = ({
         // (e.g. "/file.txt", "/subdir/", "/"). Browsing or downloading by
         // clicking those links then navigates to a path Express does not route,
         // producing a 404. The mount prefix is req.baseUrl ('/share').
-        const mountPath = req.baseUrl || '/share';
+        const mountPath = req.baseUrl || sharePrefix;
         const originalUrl = req.url;
-        req.url = req.url.replace(/^\/share/, '') || '/';
+        // Express has already stripped the mount prefix; just normalise the root.
+        // (A manual /^\/share/ strip would mangle a real file/dir literally named
+        // "share..." at the top level.)
+        req.url = req.url || '/';
         // The directory currently being listed, relative to sharePath — used to
         // point the injected "Download as .zip" link at this exact folder.
         const listingDir = decodeURIComponent((req.url.split('?')[0]) || '/');
@@ -353,7 +367,7 @@ const start = ({
                 wasListing = true;
                 body = fixListingLinks(body, mountPath);
                 if (allowZip) {
-                    const zipHref = '/zip?path=' + encodeURIComponent(listingDir);
+                    const zipHref = zipPrefix + '?path=' + encodeURIComponent(listingDir);
                     const bar = '<div style="padding:10px 14px;background:#005bff;text-align:center">' +
                         '<a href="' + zipHref + '" style="color:#fff;font-family:system-ui,sans-serif;font-weight:600;text-decoration:none">' +
                         '📦 Download this folder as .zip</a></div>';
