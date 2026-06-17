@@ -56,6 +56,18 @@ const getNetworkAddress = (preferred) => {
     return ranked[0].c.address;
 };
 
+// Parse a short human duration ("30s", "10m", "1h", "500ms", or a bare number
+// of seconds) into milliseconds. Returns null when the input is not parseable.
+const parseDuration = (str) => {
+    if (str == null) return null;
+    const m = String(str).trim().match(/^(\d+)\s*(ms|s|m|h)?$/i);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+    const unit = (m[2] || 's').toLowerCase();
+    const mult = unit === 'ms' ? 1 : unit === 's' ? 1000 : unit === 'm' ? 60000 : 3600000;
+    return n * mult;
+};
+
 const debugLog = (log) => {
     if (config.debug) {
         console.log(log);
@@ -66,5 +78,6 @@ module.exports = {
     getNetworkAddress,
     getNetworkInterfaces,
     scoreInterface,
+    parseDuration,
     debugLog,
 };

@@ -97,6 +97,16 @@ test('getNetworkAddress falls back when a missing interface is requested', () =>
     assert.strictEqual(typeof utils.getNetworkAddress('definitely-not-an-iface'), 'string');
 });
 
+test('parseDuration parses human durations', () => {
+    assert.strictEqual(utils.parseDuration('30s'), 30000);
+    assert.strictEqual(utils.parseDuration('10m'), 600000);
+    assert.strictEqual(utils.parseDuration('1h'), 3600000);
+    assert.strictEqual(utils.parseDuration('500ms'), 500);
+    assert.strictEqual(utils.parseDuration('45'), 45000);
+    assert.strictEqual(utils.parseDuration('nope'), null);
+    assert.strictEqual(utils.parseDuration(null), null);
+});
+
 // ---------- config tests ----------
 console.log('\nconfig.js');
 

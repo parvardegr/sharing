@@ -65,6 +65,8 @@ const openBrowser = (url) => {
         .option('S', { alias: 'ssl', describe: 'Enable HTTPS (auto self-signed cert when -C/-K are not given)', type: 'boolean' })
         .option('C', { alias: 'cert', describe: 'Path to SSL certificate file', type: 'string' })
         .option('K', { alias: 'key', describe: 'Path to SSL private key file', type: 'string' })
+        .option('once', { describe: 'Stop sharing after the first completed transfer', type: 'boolean' })
+        .option('timeout', { describe: 'Auto-stop the share after a duration (e.g. 30s, 10m, 1h)', type: 'string' })
         .option('tunnel', { describe: 'Show guide for sharing over the internet via tunnel services', type: 'boolean' })
         .help(true)
         .argv;
@@ -246,6 +248,12 @@ const openBrowser = (url) => {
     const shareAddress = clipboardText ? (baseUrl + '/clipboard') : (baseUrl + '/share/' + file);
     const qrPageUrl = baseUrl + '/qr';
 
+    const timeoutMs = utils.parseDuration(options.timeout);
+    if (options.timeout != null && timeoutMs == null) {
+        console.error("Could not parse --timeout '" + options.timeout + "'; expected forms like 30s, 10m, 1h.");
+        process.exit(1);
+    }
+
     const onStart = () => {
         // Handle receive
         if (options.receive) {
@@ -288,6 +296,13 @@ const openBrowser = (url) => {
             console.log('Using a self-signed HTTPS certificate; your browser shows a one-time warning — that is expected.');
         }
 
+        if (timeoutMs) {
+            console.log('\nThis share will stop automatically in ' + options.timeout + '.');
+        }
+        if (options.once) {
+            console.log('This share will stop after the first transfer (--once).');
+        }
+
         console.log('\nPress ctrl+c to stop sharing\n');
 
         if (options.open) {
@@ -295,7 +310,7 @@ const openBrowser = (url) => {
         }
     };
 
-    app.start({
+    const server = app.start({
         port: options.port,
         sharePath: sharePath,
         receive: options.receive,
@@ -307,5 +322,15 @@ const openBrowser = (url) => {
         allowZip: allowZip,
         clipboardText: clipboardText,
         getClipboardData: clipboardText ? getClipboardData : undefined,
+        once: options.once,
+        onFinish: () => process.exit(0),
     });
+
+    if (timeoutMs) {
+        setTimeout(() => {
+            console.log('\nShare expired (' + options.timeout + '). Stopping.');
+            server.close(() => process.exit(0));
+            setTimeout(() => process.exit(0), 1500).unref();
+        }, timeoutMs).unref();
+    }
 })();

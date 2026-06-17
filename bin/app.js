@@ -336,6 +336,10 @@ const start = ({
         // point the injected "Download as .zip" link at this exact folder.
         const listingDir = decodeURIComponent((req.url.split('?')[0]) || '/');
 
+        // Whether this response was the directory listing (vs. an actual file
+        // download). Used by --once so browsing a folder doesn't count as a transfer.
+        let wasListing = false;
+
         // Rewrite the generated directory-listing links before sending them so
         // they are valid URLs that route back through /share (see fixListingLinks),
         // and inject a "Download as .zip" link when zip support is enabled. Gated on
@@ -346,6 +350,7 @@ const start = ({
             const contentType = res.getHeader('content-type');
             const isHtml = contentType && String(contentType).includes('text/html');
             if (typeof body === 'string' && isHtml && body.includes('id="files"')) {
+                wasListing = true;
                 body = fixListingLinks(body, mountPath);
                 if (allowZip) {
                     const zipHref = '/zip?path=' + encodeURIComponent(listingDir);
@@ -357,6 +362,25 @@ const start = ({
             }
             return originalEnd(body, ...rest);
         };
+
+        // --once: a GET that served an actual file (not the listing) counts as the
+        // transfer that ends the share. A 200 is a whole-file download; a 206 only
+        // counts once the final byte has been delivered, so range-requesting media
+        // players (which probe with small ranges) don't end the share prematurely.
+        if (once) {
+            res.on('finish', () => {
+                if (req.method !== 'GET' || wasListing) return;
+                if (res.statusCode === 200) {
+                    finishOnce('download');
+                } else if (res.statusCode === 206) {
+                    const cr = String(res.getHeader('content-range') || '');
+                    const m = cr.match(/bytes\s+\d+-(\d+)\/(\d+)/);
+                    if (m && (parseInt(m[1], 10) + 1) >= parseInt(m[2], 10)) {
+                        finishOnce('download');
+                    }
+                }
+            });
+        }
 
         // cleanUrls defaults to true in serve-handler, which makes it answer a
         // request for an .html file with a 301 to the extension-less path. That
