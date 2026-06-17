@@ -177,7 +177,8 @@ async function integrationTests() {
                         const res = await request('http://127.0.0.1:' + (port + 2) + '/share/');
                         assert.strictEqual(res.status, 200);
                         assert.ok(res.data.includes('%23'), 'Directory listing should encode # as %23');
-                        assert.ok(!/href="[^"]*#[^"]*"/.test(res.data), 'Directory listing should not have raw # in href');
+                        assert.ok(!/href="[^"]*(?<!&)#[^"]*"/.test(res.data), 'Directory listing should not have raw # in href');
+                        assert.ok(!res.data.includes('&%2347;'), 'Directory listing should not break &#47; HTML entities');
                         resolve();
                     } catch (err) {
                         reject(err);

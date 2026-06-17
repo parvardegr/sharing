@@ -71,7 +71,7 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
         res.end = function (body, encoding) {
             if (typeof body === 'string' && res.getHeader('content-type') && String(res.getHeader('content-type')).includes('text/html')) {
                 body = body.replace(/href="([^"]*)"/g, (match, href) => {
-                    const encoded = href.replace(/#/g, '%23');
+                    const encoded = href.replace(/(?<!&)#/g, '%23');
                     return 'href="' + encoded + '"';
                 });
             }
