@@ -8,7 +8,7 @@
     "start": "node bin/index.js"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=14.17.0"
   },
   "keywords": [
     "file sharing",
@@ -42,12 +42,15 @@
   },
   "homepage": "https://github.com/parvardegr/sharing#readme",
   "dependencies": {
+    "archiver": "^7.0.1",
     "clipboardy": "^2.3.0",
     "express": "^4.21.2",
     "express-basic-auth": "^1.2.1",
     "express-fileupload": "^1.4.0",
     "portfinder": "^1.0.32",
+    "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
+    "selfsigned": "^2.4.1",
     "serve-handler": "^6.1.6",
     "yargs": "^17.6.0"
   }
