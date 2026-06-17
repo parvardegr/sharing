@@ -9,6 +9,10 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
+// Signal to the app that we are running under tests (e.g. so the /text route
+// does not write to the developer's real clipboard).
+process.env.SHARING_TEST = '1';
+
 const utils = require('../bin/utils');
 const config = require('../bin/config');
 const app = require('../bin/app');
@@ -72,6 +76,37 @@ test('debugLog does not throw when debug is true', () => {
     config.debug = false;
 });
 
+test('scoreInterface prefers a LAN address over a docker/virtual one', () => {
+    const lan = utils.scoreInterface({ name: 'en0', address: '192.168.1.20' });
+    const docker = utils.scoreInterface({ name: 'docker0', address: '172.17.0.1' });
+    const vpn = utils.scoreInterface({ name: 'utun3', address: '10.8.0.2' });
+    assert.ok(lan > docker, 'LAN interface should outrank docker');
+    assert.ok(lan > vpn, 'LAN interface should outrank a VPN tunnel');
+});
+
+test('getNetworkInterfaces returns an array of {name,address}', () => {
+    const list = utils.getNetworkInterfaces();
+    assert.ok(Array.isArray(list));
+    list.forEach((c) => {
+        assert.strictEqual(typeof c.name, 'string');
+        assert.strictEqual(typeof c.address, 'string');
+    });
+});
+
+test('getNetworkAddress falls back when a missing interface is requested', () => {
+    assert.strictEqual(typeof utils.getNetworkAddress('definitely-not-an-iface'), 'string');
+});
+
+test('parseDuration parses human durations', () => {
+    assert.strictEqual(utils.parseDuration('30s'), 30000);
+    assert.strictEqual(utils.parseDuration('10m'), 600000);
+    assert.strictEqual(utils.parseDuration('1h'), 3600000);
+    assert.strictEqual(utils.parseDuration('500ms'), 500);
+    assert.strictEqual(utils.parseDuration('45'), 45000);
+    assert.strictEqual(utils.parseDuration('nope'), null);
+    assert.strictEqual(utils.parseDuration(null), null);
+});
+
 // ---------- config tests ----------
 console.log('\nconfig.js');
 
@@ -102,6 +137,62 @@ function request(url) {
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => resolve({ status: res.statusCode, data: data }));
         }).on('error', reject);
+    });
+}
+
+// Collect a (possibly binary) response as a Buffer.
+function requestRaw(url) {
+    return new Promise((resolve, reject) => {
+        http.get(url, (res) => {
+            const chunks = [];
+            res.on('data', (chunk) => { chunks.push(chunk); });
+            res.on('end', () => resolve({ status: res.statusCode, buf: Buffer.concat(chunks), headers: res.headers }));
+        }).on('error', reject);
+    });
+}
+
+// POST several files in a single multipart/form-data request, all under the same field.
+function postMultipart(port, urlPath, parts) {
+    return new Promise((resolve, reject) => {
+        const boundary = '----testboundary' + Date.now();
+        const pieces = [];
+        parts.forEach((p) => {
+            pieces.push('--' + boundary + '\r\n');
+            pieces.push('Content-Disposition: form-data; name="' + p.field + '"; filename="' + p.filename + '"\r\n');
+            pieces.push('Content-Type: application/octet-stream\r\n\r\n');
+            pieces.push(p.content);
+            pieces.push('\r\n');
+        });
+        pieces.push('--' + boundary + '--\r\n');
+        const body = Buffer.from(pieces.join(''), 'utf8');
+        const req = http.request({
+            hostname: '127.0.0.1', port: port, path: urlPath, method: 'POST',
+            headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length },
+        }, (res) => {
+            let data = '';
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => resolve({ status: res.statusCode, data: data }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+function postJson(port, urlPath, obj) {
+    return new Promise((resolve, reject) => {
+        const body = Buffer.from(JSON.stringify(obj), 'utf8');
+        const req = http.request({
+            hostname: '127.0.0.1', port: port, path: urlPath, method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': body.length },
+        }, (res) => {
+            let data = '';
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => resolve({ status: res.statusCode, data: data }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
     });
 }
 
@@ -451,17 +542,264 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('qr route renders a scannable image page', async () => {
+        const p = port + 22;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '',
+                shareAddress: 'http://127.0.0.1:' + p + '/share/',
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + p + '/qr');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.data.indexOf('data:image') !== -1, 'should embed a QR image');
+                        assert.ok(res.data.indexOf('/share/') !== -1, 'should show the share link');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('uploads multiple files in one request, never overwriting or escaping the dir', async () => {
+        const p = port + 20;
+        const recvDir = path.join(tmpDir, 'recv');
+        if (!fs.existsSync(recvDir)) fs.mkdirSync(recvDir);
+        fs.writeFileSync(path.join(recvDir, 'a.txt'), 'pre-existing');
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: recvDir, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await postMultipart(p, '/upload', [
+                            { field: 'selected', filename: 'a.txt', content: 'AAA' },
+                            { field: 'selected', filename: 'b.txt', content: 'BBB' },
+                            { field: 'selected', filename: '../escape.txt', content: 'CCC' },
+                        ]);
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(fs.readFileSync(path.join(recvDir, 'a.txt'), 'utf8'), 'pre-existing');
+                        assert.ok(fs.existsSync(path.join(recvDir, 'a (1).txt')), 'collision-safe rename');
+                        assert.ok(fs.existsSync(path.join(recvDir, 'b.txt')), 'b.txt saved');
+                        assert.ok(fs.existsSync(path.join(recvDir, 'escape.txt')), 'escape saved as basename');
+                        assert.ok(!fs.existsSync(path.join(tmpDir, 'escape.txt')), 'must not escape the share dir');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('two same-named files in one request are both kept (no clobber)', async () => {
+        const p = port + 25;
+        const d = path.join(tmpDir, 'recv2');
+        if (!fs.existsSync(d)) fs.mkdirSync(d);
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: d, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await postMultipart(p, '/upload', [
+                            { field: 'selected', filename: 'dup.txt', content: 'FIRST' },
+                            { field: 'selected', filename: 'dup.txt', content: 'SECOND' },
+                        ]);
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(fs.existsSync(path.join(d, 'dup.txt')), 'first kept');
+                        assert.ok(fs.existsSync(path.join(d, 'dup (1).txt')), 'second kept under a fresh name');
+                        const c1 = fs.readFileSync(path.join(d, 'dup.txt'), 'utf8');
+                        const c2 = fs.readFileSync(path.join(d, 'dup (1).txt'), 'utf8');
+                        assert.ok((c1 === 'FIRST' && c2 === 'SECOND') || (c1 === 'SECOND' && c2 === 'FIRST'), 'both contents preserved');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('upload never writes through a symlink to escape the share dir', async () => {
+        const p = port + 26;
+        const d = path.join(tmpDir, 'recv3');
+        if (!fs.existsSync(d)) fs.mkdirSync(d);
+        const outside = path.join(tmpDir, 'OUTSIDE-secret.txt');
+        try { fs.unlinkSync(outside); } catch (e) { /* ignore */ }
+        let symlinked = true;
+        try { fs.symlinkSync(outside, path.join(d, 'evil.txt')); } catch (e) { symlinked = false; }
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: d, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        await postMultipart(p, '/upload', [{ field: 'selected', filename: 'evil.txt', content: 'PWNED' }]);
+                        assert.ok(!fs.existsSync(outside), 'must not write through the symlink to an outside path');
+                        if (symlinked) {
+                            assert.ok(fs.existsSync(path.join(d, 'evil (1).txt')), 'should land under a safe, non-symlink name');
+                        }
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('zip route streams a zip of the shared directory and rejects traversal', async () => {
+        const p = port + 21;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false, allowZip: true,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await requestRaw('http://127.0.0.1:' + p + '/zip');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.buf.length > 0, 'zip should not be empty');
+                        assert.strictEqual(res.buf.slice(0, 2).toString('latin1'), 'PK', 'response should be a zip');
+                        const bad = await request('http://127.0.0.1:' + p + '/zip?path=../../etc');
+                        assert.ok(bad.status === 400 || bad.status === 404, 'traversal must be rejected, got ' + bad.status);
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('zip skips symlinks (does not disclose their targets)', async () => {
+        const p = port + 29;
+        const d = path.join(tmpDir, 'ziptest');
+        if (!fs.existsSync(d)) fs.mkdirSync(d);
+        fs.writeFileSync(path.join(d, 'real.txt'), 'real');
+        const linkName = 'ZZLINKZZ';
+        try { fs.symlinkSync('/etc/hosts', path.join(d, linkName)); } catch (e) { /* ignore */ }
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: d, receive: false, clipboard: false, allowZip: true,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await requestRaw('http://127.0.0.1:' + p + '/zip');
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(res.buf.slice(0, 2).toString('latin1'), 'PK', 'should be a zip');
+                        assert.ok(!res.buf.includes(Buffer.from(linkName)), 'symlink name must not appear in the zip');
+                        assert.ok(res.buf.includes(Buffer.from('real.txt')), 'real file should be in the zip');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('clipboard page shows text with a copy button and does not serve the cwd', async () => {
+        const p = port + 24;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: process.cwd(), receive: false, clipboard: true,
+                clipboardText: true, getClipboardData: () => ({ isPath: false, text: 'secret clip text' }),
+                updateClipboardData: null, postUploadRedirectUrl: '',
+                shareAddress: 'http://127.0.0.1:' + p + '/clipboard',
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + p + '/clipboard');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.data.indexOf('secret clip text') !== -1, 'shows clipboard text');
+                        assert.ok(res.data.toLowerCase().indexOf('copy') !== -1, 'has a copy button');
+                        const dl = await request('http://127.0.0.1:' + p + '/clipboard.txt');
+                        assert.strictEqual(dl.status, 200);
+                        assert.strictEqual(dl.data, 'secret clip text');
+                        const share = await request('http://127.0.0.1:' + p + '/share/');
+                        assert.strictEqual(share.status, 404, 'cwd must not be served');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('text route accepts a snippet and rejects empty input', async () => {
+        const p = port + 23;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await postJson(p, '/text', { text: 'hello from a test (not your clipboard)' });
+                        assert.strictEqual(res.status, 200);
+                        const empty = await postJson(p, '/text', { text: '' });
+                        assert.strictEqual(empty.status, 400);
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('a top-level path whose name starts with "share" is reachable', async () => {
+        const p = port + 27;
+        fs.writeFileSync(path.join(tmpDir, 'sharething.txt'), 'share-prefixed');
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + p + '/share/sharething.txt');
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(res.data, 'share-prefixed');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('capability token gates the share and the zip', async () => {
+        const p = port + 28;
+        const tok = 'testtoken123';
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false, allowZip: true, token: tok,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const base = 'http://127.0.0.1:' + p;
+                        assert.strictEqual((await request(base + '/share/' + tok + '/')).status, 200, 'tokened listing loads');
+                        assert.strictEqual((await request(base + '/share/')).status, 404, 'untokened share is 404');
+                        assert.strictEqual((await requestRaw(base + '/zip/' + tok)).status, 200, 'tokened zip works');
+                        assert.strictEqual((await request(base + '/zip')).status, 404, 'untokened zip is 404');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
     // Cleanup
     closeServers();
     try {
-        fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
-        fs.unlinkSync(path.join(tmpDir, 'File #1.txt'));
-        fs.unlinkSync(path.join(tmpDir, 'page.html'));
-        trickyNames.forEach((n) => fs.unlinkSync(path.join(tmpDir, n)));
-        fs.unlinkSync(path.join(subDir, 'nested.txt'));
-        fs.rmdirSync(subDir);
-        fs.rmdirSync(tmpDir);
-    } catch (e) { /* ignore */ }
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (e) {
+        try {
+            fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
+            fs.unlinkSync(path.join(tmpDir, 'File #1.txt'));
+            fs.unlinkSync(path.join(tmpDir, 'page.html'));
+            trickyNames.forEach((n) => fs.unlinkSync(path.join(tmpDir, n)));
+            fs.unlinkSync(path.join(subDir, 'nested.txt'));
+            fs.rmdirSync(subDir);
+            fs.rmdirSync(tmpDir);
+        } catch (e2) { /* ignore */ }
+    }
 }
 
 integrationTests().then(() => {

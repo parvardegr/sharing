@@ -16,8 +16,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             flex-direction: column;
+            padding: 24px 0;
+            box-sizing: border-box;
         }
 
         #share-container {
@@ -31,8 +33,15 @@
             font-weight: bolder;
             text-align: center;
             color: #181818;
+            cursor: pointer;
         }
-        
+
+        #share-container.dragover {
+            background-color: #b388ff;
+            outline: 4px dashed #181818;
+            outline-offset: 6px;
+        }
+
         a {
             font-size: 32px;
             font-size: 5vw;
@@ -42,6 +51,14 @@
 
         #share-container {
             margin-bottom: 20px;
+        }
+
+        #hint {
+            font-family: monospace;
+            font-weight: bold;
+            color: #181818;
+            margin-bottom: 16px;
+            text-align: center;
         }
 
         #progress-container {
@@ -73,19 +90,58 @@
             margin-top: 8px;
             color: #181818;
         }
+
+        #text-panel {
+            width: 80%;
+            max-width: 500px;
+            margin-top: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #text-input {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 80px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 16px;
+            border: 3px solid #181818;
+            border-radius: 6px;
+            resize: vertical;
+        }
+
+        #send-text {
+            font-family: monospace;
+            font-weight: bolder;
+            font-size: 18px;
+            color: #181818;
+            background-color: #fff;
+            border: 3px solid #181818;
+            border-radius: 6px;
+            padding: 10px;
+            cursor: pointer;
+        }
     </style>
 
     <body>
-        <form ref='uploadForm' 
-          id='uploadForm' 
-          action='/upload' 
-          method='post' 
+        <form ref='uploadForm'
+          id='uploadForm'
+          action='/upload'
+          method='post'
           encType="multipart/form-data">
             <div id="share-container">
-                <label id="share" for="file-input" class="btn">Share file🚀</label>
+                <label id="share" for="file-input" class="btn">Share files🚀</label>
             </div>
+            <div id="hint">Tap to choose, or drag &amp; drop files here</div>
             <a href="{shareAddress}" target="_blank">View directory📁</a>
-            <input id="file-input" type="file" name="selected" style="visibility:hidden; display:none;"/>
+            <input id="file-input" type="file" name="selected" multiple style="visibility:hidden; display:none;"/>
+
+            <div id="text-panel">
+                <textarea id="text-input" placeholder="…or send a note / link to the computer"></textarea>
+                <button type="button" id="send-text">Send text ✉️</button>
+            </div>
         </form>
         <div id="progress-container">
             <div id="progress-bar-bg">
@@ -96,24 +152,26 @@
     </body>
 
     <script>
-        document.getElementById("file-input").onchange = function() {
-            var file = this.files[0];
-            if (!file) return;
+        var fileInput = document.getElementById("file-input");
+        var dropZone = document.getElementById("share-container");
+        var progressContainer = document.getElementById("progress-container");
+        var progressBar = document.getElementById("progress-bar");
+        var progressText = document.getElementById("progress-text");
+        var shareLabel = document.getElementById("share");
+
+        function uploadFiles(files) {
+            if (!files || files.length === 0) return;
 
             var formData = new FormData();
-            formData.append("selected", file);
+            for (var i = 0; i < files.length; i++) {
+                formData.append("selected", files[i]);
+            }
 
             var xhr = new XMLHttpRequest();
-
-            var progressContainer = document.getElementById("progress-container");
-            var progressBar = document.getElementById("progress-bar");
-            var progressText = document.getElementById("progress-text");
-            var shareLabel = document.getElementById("share");
-
             progressContainer.style.display = "block";
-            shareLabel.innerText = "Sending...";
+            shareLabel.innerText = files.length > 1 ? ("Sending " + files.length + " files…") : "Sending…";
 
-            xhr.upload.onprogress = function(e) {
+            xhr.upload.onprogress = function (e) {
                 if (e.lengthComputable) {
                     var percent = Math.round((e.loaded / e.total) * 100);
                     progressBar.style.width = percent + "%";
@@ -121,12 +179,12 @@
                 }
             };
 
-            xhr.onload = function() {
+            xhr.onload = function () {
                 if (xhr.status === 200) {
                     progressBar.style.width = "100%";
                     progressText.innerText = "100%";
                     shareLabel.innerText = "Done! ✅";
-                    setTimeout(function() {
+                    setTimeout(function () {
                         window.location.href = "{postUploadRedirectUrl}";
                     }, 1000);
                 } else {
@@ -135,13 +193,63 @@
                 }
             };
 
-            xhr.onerror = function() {
+            xhr.onerror = function () {
                 shareLabel.innerText = "Error ❌";
                 progressText.innerText = "Upload failed";
             };
 
             xhr.open("POST", "/upload", true);
             xhr.send(formData);
+        }
+
+        fileInput.onchange = function () {
+            uploadFiles(this.files);
+        };
+
+        // Drag-and-drop support.
+        ["dragenter", "dragover"].forEach(function (evt) {
+            dropZone.addEventListener(evt, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add("dragover");
+            });
+        });
+        ["dragleave", "drop"].forEach(function (evt) {
+            dropZone.addEventListener(evt, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove("dragover");
+            });
+        });
+        dropZone.addEventListener("drop", function (e) {
+            if (e.dataTransfer && e.dataTransfer.files) {
+                uploadFiles(e.dataTransfer.files);
+            }
+        });
+
+        // Send a text snippet back to the terminal.
+        var textInput = document.getElementById("text-input");
+        var sendText = document.getElementById("send-text");
+        sendText.onclick = function () {
+            var text = textInput.value;
+            if (!text) return;
+            sendText.innerText = "Sending…";
+            fetch("/text", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: text })
+            }).then(function (r) {
+                if (r.ok) {
+                    sendText.innerText = "Sent! ✅";
+                    textInput.value = "";
+                } else {
+                    sendText.innerText = "Failed ❌";
+                }
+                setTimeout(function () { sendText.innerText = "Send text ✉️"; }, 1500);
+            }).catch(function () {
+                sendText.innerText = "Failed ❌";
+                setTimeout(function () { sendText.innerText = "Send text ✉️"; }, 1500);
+            });
         };
     </script>
 

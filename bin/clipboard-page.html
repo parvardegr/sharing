@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <title>clipboard</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+
+    <style type="text/css">
+        body {
+            background-color: #005bff47;
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        #wrap {
+            min-height: 100vh;
+            box-sizing: border-box;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        #clip {
+            width: 100%;
+            max-width: 640px;
+            min-height: 40vh;
+            box-sizing: border-box;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 16px;
+            border: 5px solid #181818;
+            border-radius: 8px;
+            background: #fff;
+            color: #181818;
+            resize: vertical;
+        }
+
+        .btn {
+            font-family: monospace;
+            font-weight: bolder;
+            font-size: 20px;
+            color: #181818;
+            background-color: blueviolet;
+            border: 5px solid #181818;
+            border-radius: 8px;
+            padding: 12px 20px;
+            cursor: pointer;
+        }
+
+        .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+        a.dl { color: #181818; font-weight: bolder; font-family: monospace; font-size: 16px; }
+    </style>
+
+    <body>
+        <div id="wrap">
+            <textarea id="clip" readonly>{clipboardText}</textarea>
+            <div class="row">
+                <button id="copy" class="btn">Copy to clipboard 📋</button>
+                <a class="dl" href="{downloadUrl}">Download as file 💾</a>
+            </div>
+        </div>
+
+        <script>
+            var clip = document.getElementById("clip");
+            var copy = document.getElementById("copy");
+            copy.onclick = function () {
+                var text = clip.value;
+                function done() { copy.innerText = "Copied! ✅"; setTimeout(function () { copy.innerText = "Copy to clipboard 📋"; }, 1500); }
+                function fallback() {
+                    clip.removeAttribute("readonly");
+                    clip.focus();
+                    clip.select();
+                    try { document.execCommand("copy"); done(); }
+                    catch (e) { copy.innerText = "Select the text and copy manually"; }
+                    clip.setAttribute("readonly", "readonly");
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(fallback);
+                } else {
+                    fallback();
+                }
+            };
+        </script>
+    </body>
+</html>

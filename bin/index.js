@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const https = require('https');
+const crypto = require('crypto');
 const path = require('path');
 const yargs = require('yargs');
 const qrcode = require('qrcode-terminal');
@@ -31,9 +32,24 @@ const usage = [
     '  Share with basic authentication',
     '  $ sharing /path/to/file-or-directory -U user -P password',
     '',
+    '  Share privately (secret link + password + HTTPS)',
+    '  $ sharing /path/to/file-or-directory --secure',
+    '',
     '  Share over HTTPS',
     '  $ sharing /path/to/file-or-directory -S -C cert.pem -K key.pem',
 ].join('\n');
+
+// Open a URL in the host machine's default browser (best effort).
+const openBrowser = (url) => {
+    const { spawn } = require('child_process');
+    let cmd;
+    let args;
+    if (process.platform === 'darwin') { cmd = 'open'; args = [url]; }
+    else if (process.platform === 'win32') { cmd = 'cmd'; args = ['/c', 'start', '""', url]; }
+    else { cmd = 'xdg-open'; args = [url]; }
+    try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); }
+    catch (e) { /* ignore */ }
+};
 
 // Main
 (async () => {
@@ -42,16 +58,21 @@ const usage = [
         .option('debug', { describe: 'Enable debug logging', type: 'boolean', default: false })
         .option('p', { alias: 'port', describe: 'Set the server port (default: auto-assigned)', type: 'number' })
         .option('ip', { describe: 'Specify your machine\'s public IP address', type: 'string' })
+        .option('i', { alias: 'interface', describe: 'Network interface/adapter name to advertise (e.g. en0, eth0)', type: 'string' })
         .option('c', { alias: 'clipboard', describe: 'Share clipboard content', type: 'boolean' })
-        .option('t', { alias: 'tmpdir', describe: 'Set temporary directory for clipboard files', type: 'string' })
         .option('w', { alias: 'on-windows-native-terminal', describe: 'Enable QR code rendering in Windows native terminal', type: 'boolean' })
+        .option('open', { describe: 'Open the QR code in a browser window on this computer', type: 'boolean' })
         .option('r', { alias: 'receive', describe: 'Receive files from another device', type: 'boolean' })
         .option('q', { alias: 'receive-port', describe: 'Set the port for receiving files', type: 'number' })
         .option('U', { alias: 'username', describe: 'Set username for basic authentication', type: 'string', default: 'user' })
         .option('P', { alias: 'password', describe: 'Set password for basic authentication', type: 'string' })
-        .option('S', { alias: 'ssl', describe: 'Enable HTTPS', type: 'boolean' })
+        .option('S', { alias: 'ssl', describe: 'Enable HTTPS (auto self-signed cert when -C/-K are not given)', type: 'boolean' })
         .option('C', { alias: 'cert', describe: 'Path to SSL certificate file', type: 'string' })
         .option('K', { alias: 'key', describe: 'Path to SSL private key file', type: 'string' })
+        .option('token', { describe: 'Add a secret token to the share URL so it is unguessable', type: 'boolean' })
+        .option('secure', { describe: 'Private share preset: secret link + generated password + HTTPS', type: 'boolean' })
+        .option('once', { describe: 'Stop sharing after the first completed transfer', type: 'boolean' })
+        .option('timeout', { describe: 'Auto-stop the share after a duration (e.g. 30s, 10m, 1h)', type: 'string' })
         .option('tunnel', { describe: 'Show guide for sharing over the internet via tunnel services', type: 'boolean' })
         .help(true)
         .argv;
@@ -100,34 +121,14 @@ const usage = [
         process.exit(0);
     }
 
-    if (options.username && options.password) {
-        config.auth.username = options.username;
-        config.auth.password = options.password;
-    }
-
     let sharePath;
     let fileName;
+    let clipboardText = false;
 
-    if (options.ssl) {
-        if (!options.cert) {
-            console.log('Specify the cert path.');
-            return;
-        }
-        if (!options.key) {
-            console.log('Specify the key path.');
-            return;
-        }
-        config.ssl = {
-            protocolModule: https,
-            protocol: 'https',
-            option: {
-                key: fs.readFileSync(path.resolve(process.cwd(), options.key)),
-                cert: fs.readFileSync(path.resolve(process.cwd(), options.cert)),
-            },
-        };
-    }
-
-    const updateClipboardData = () => {
+    // Read the clipboard and classify it: either an existing filesystem path to
+    // share directly, or raw text to present on the clipboard page. Re-reads live
+    // so each request reflects the current clipboard contents.
+    const getClipboardData = () => {
         let clipboard;
         try {
             clipboard = require('clipboardy');
@@ -146,18 +147,22 @@ const usage = [
         }
         utils.debugLog('clipboard file path:\n ' + filePath);
 
-        if (fs.existsSync(filePath)) {
-            utils.debugLog('clipboard file ' + filePath + ' found');
-            sharePath = filePath;
-        } else {
-            const outPath = options.tmpdir ? path.join(options.tmpdir, '.clipboard-tmp') : '.clipboard-tmp';
-            fs.writeFileSync(outPath, data);
-            sharePath = path.resolve(outPath);
+        if (filePath && fs.existsSync(filePath)) {
+            return { isPath: true, path: filePath, text: null };
         }
+        return { isPath: false, path: null, text: data };
     };
 
     if (options.clipboard) {
-        updateClipboardData();
+        const cb = getClipboardData();
+        if (cb.isPath) {
+            sharePath = cb.path;
+        } else {
+            clipboardText = true;
+            // Not served (the /share mount is skipped in clipboard-text mode); this
+            // only needs to be an existing directory to satisfy validation below.
+            sharePath = process.cwd();
+        }
     } else {
         sharePath = options._[0];
     }
@@ -177,22 +182,98 @@ const usage = [
         process.exit(1);
     }
 
-    if (fs.lstatSync(sharePath).isFile()) {
+    if (!clipboardText && fs.lstatSync(sharePath).isFile()) {
         fileName = path.basename(sharePath);
         sharePath = path.dirname(sharePath);
     }
+
+    // A directory share (not a single file, not clipboard text) can be zipped.
+    const allowZip = !fileName && !clipboardText;
 
     if (!options.port) {
         options.port = await portfinder.getPortPromise(config.portfinder);
     }
 
-    const host = options.ip || utils.getNetworkAddress();
+    const interfaceCandidates = utils.getNetworkInterfaces();
+    const host = options.ip || utils.getNetworkAddress(options.interface);
+
+    // HTTPS: explicit (-S) or implied by --secure. Use the supplied cert/key when
+    // both are given, otherwise generate a self-signed certificate for the host.
+    const wantHttps = options.ssl || options.secure;
+    const usingProvidedCert = Boolean(options.cert && options.key);
+    if (wantHttps) {
+        if (usingProvidedCert) {
+            config.ssl = {
+                protocolModule: https,
+                protocol: 'https',
+                option: {
+                    key: fs.readFileSync(path.resolve(process.cwd(), options.key)),
+                    cert: fs.readFileSync(path.resolve(process.cwd(), options.cert)),
+                },
+            };
+        } else if (options.cert || options.key) {
+            console.log('For custom HTTPS, pass both --cert and --key. Omit both to use an auto self-signed certificate.');
+            process.exit(1);
+        } else {
+            let selfsigned;
+            try {
+                selfsigned = require('selfsigned');
+            } catch (e) {
+                console.error('Auto HTTPS is not available. Install selfsigned, or pass -C/-K.');
+                process.exit(1);
+            }
+            // An IP altName (type 7) must be a literal IP; a hostname in --ip would
+            // make selfsigned throw, so emit it as a DNS altName (type 2) instead.
+            const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.indexOf(':') !== -1;
+            const altNames = [{ type: 2, value: 'localhost' }];
+            altNames.unshift(isIp ? { type: 7, ip: host } : { type: 2, value: host });
+            let pems;
+            try {
+                pems = selfsigned.generate(
+                    [{ name: 'commonName', value: host }],
+                    { days: 365, keySize: 2048, algorithm: 'sha256', extensions: [{ name: 'subjectAltName', altNames: altNames }] }
+                );
+            } catch (e) {
+                console.error('Could not create a self-signed certificate; pass -C/-K instead.');
+                process.exit(1);
+            }
+            config.ssl = { protocolModule: https, protocol: 'https', option: { key: pems.private, cert: pems.cert } };
+        }
+    }
+
+    // Secret capability token in the share URL (explicit --token or via --secure).
+    const useToken = options.token || options.secure;
+    const token = useToken ? crypto.randomBytes(8).toString('hex') : '';
+
+    // Basic auth: explicit password, or a generated one when --secure is used.
+    let password = options.password;
+    if (options.secure && !password) {
+        // Fixed length over a fixed alphabet -> deterministic ~95 bits of entropy
+        // (and no dependency on Buffer base64url, which is only on Node >= 14.18).
+        const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        password = Array.from(crypto.randomBytes(16), (b) => ALPHA[b % ALPHA.length]).join('');
+    }
+    const username = options.username || 'user';
+    if (password) {
+        config.auth.username = username;
+        config.auth.password = password;
+    }
+
     const protocol = config.ssl.protocol;
     const baseUrl = protocol + '://' + host + ':' + options.port;
 
+    const sharePrefix = '/share' + (token ? '/' + token : '');
+    const clipboardPrefix = '/clipboard' + (token ? '/' + token : '');
     const uploadAddress = baseUrl + '/receive';
     const file = fileName ? encodeURIComponent(fileName) : '';
-    const shareAddress = baseUrl + '/share/' + file;
+    const shareAddress = clipboardText ? (baseUrl + clipboardPrefix) : (baseUrl + sharePrefix + '/' + file);
+    const qrPageUrl = baseUrl + '/qr';
+
+    const timeoutMs = utils.parseDuration(options.timeout);
+    if (options.timeout != null && timeoutMs == null) {
+        console.error("Could not parse --timeout '" + options.timeout + "'; expected forms like 30s, 10m, 1h.");
+        process.exit(1);
+    }
 
     const onStart = () => {
         // Handle receive
@@ -215,17 +296,76 @@ const usage = [
         console.log(usageMessage);
         qrcode.generate(shareAddress, config.qrcode);
         console.log('access link: ' + shareAddress);
+
+        // QR fallback for terminals that can't render it (Windows native, unicode).
+        console.log("\nCan't scan the QR-Code? Open this in a browser on this computer:\n  " + qrPageUrl);
+
+        // If several network addresses exist and the user didn't pin one, surface
+        // them so a wrong-interface guess is easy to correct.
+        if (!options.ip && !options.interface && interfaceCandidates.length > 1) {
+            const others = interfaceCandidates
+                .filter((c) => c.address !== host)
+                .map((c) => c.name + ' (' + c.address + ')')
+                .join(', ');
+            if (others) {
+                console.log('\nAdvertising ' + host + '. Other addresses: ' + others);
+                console.log('  (wrong one? pick with --interface <name> or --ip <addr>)');
+            }
+        }
+
+        if (token) {
+            console.log('\nThis is a secret link — only people you send the exact URL to can open it.');
+        }
+        if (options.secure && password) {
+            console.log('Login —  username: ' + username + '   password: ' + password);
+        }
+        if (wantHttps && !usingProvidedCert) {
+            console.log('Using a self-signed HTTPS certificate; your browser shows a one-time warning — that is expected.');
+        }
+        if (!config.auth.password && !token) {
+            console.log('\n⚠  Anyone on your network can open this share. Restrict it with -U <user> -P <pass>, or use --secure.');
+        }
+
+        // Connectivity hint — the #1 reason a scan "works" but the page won't load.
+        console.log('\nNot loading on your phone? Check that both devices are on the same Wi-Fi,');
+        console.log('and that your firewall allows port ' + options.port + '.');
+
+        if (timeoutMs) {
+            console.log('\nThis share will stop automatically in ' + options.timeout + '.');
+        }
+        if (options.once) {
+            console.log('This share will stop after the first transfer (--once).');
+        }
+
         console.log('\nPress ctrl+c to stop sharing\n');
+
+        if (options.open) {
+            openBrowser(protocol + '://localhost:' + options.port + '/qr');
+        }
     };
 
-    app.start({
+    const server = app.start({
         port: options.port,
         sharePath: sharePath,
         receive: options.receive,
         clipboard: options.clipboard,
-        updateClipboardData: updateClipboardData,
+        updateClipboardData: (options.clipboard && !clipboardText) ? getClipboardData : undefined,
         onStart: onStart,
         postUploadRedirectUrl: uploadAddress,
         shareAddress: shareAddress,
+        token: token,
+        allowZip: allowZip,
+        clipboardText: clipboardText,
+        getClipboardData: clipboardText ? getClipboardData : undefined,
+        once: options.once,
+        onFinish: () => process.exit(0),
     });
+
+    if (timeoutMs) {
+        setTimeout(() => {
+            console.log('\nShare expired (' + options.timeout + '). Stopping.');
+            server.close(() => process.exit(0));
+            setTimeout(() => process.exit(0), 1500).unref();
+        }, timeoutMs).unref();
+    }
 })();
