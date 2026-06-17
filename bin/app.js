@@ -109,6 +109,8 @@ const start = ({
     shareAddress,
     // Optional capabilities (default off -> behaviour identical to before):
     allowZip,         // expose the zip route and inject a "Download as .zip" link into listings
+    clipboardText,    // serve the clipboard copy page instead of a file download
+    getClipboardData, // () => { isPath, text } — re-read live on each request
     once,             // stop the server after the first completed transfer
     onFinish,         // called when --once completes a transfer (the caller owns process exit)
 } = {}) => {
@@ -225,6 +227,31 @@ const start = ({
         });
     }
 
+    // Clipboard share: present the text on a styled page with a one-tap Copy button
+    // instead of forcing a file download.
+    if (clipboardText) {
+        const clipboardPageHtml = fs.readFileSync(path.join(__dirname, 'clipboard-page.html'), 'utf8');
+        const currentText = () => {
+            if (getClipboardData) {
+                const d = getClipboardData();
+                return (d && d.text) || '';
+            }
+            return '';
+        };
+        app.get(['/', '/clipboard'], (req, res) => {
+            res.type('html').send(
+                clipboardPageHtml
+                    .replace(/\{clipboardText\}/g, escapeHtml(currentText()))
+                    .replace(/\{downloadUrl\}/g, '/clipboard.txt')
+            );
+        });
+        app.get('/clipboard.txt', (req, res) => {
+            res.on('finish', () => { if (res.statusCode === 200) finishOnce('download'); });
+            res.attachment('clipboard.txt');
+            res.type('text/plain').send(currentText());
+        });
+    }
+
     // Download an entire shared directory (or a sub-folder via ?path=) as a zip.
     if (allowZip) {
         app.get('/zip', (req, res) => {
@@ -262,7 +289,10 @@ const start = ({
         });
     }
 
-    app.use('/share', (req, res) => {
+    // In clipboard-text mode there is no real shared directory (sharePath points at
+    // the working directory only to satisfy the API), so mounting serve-handler here
+    // would leak the cwd. Skip the share mount entirely in that mode.
+    if (!clipboardText) app.use('/share', (req, res) => {
         if (clipboard && updateClipboardData) {
             updateClipboardData();
         }

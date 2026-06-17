@@ -665,6 +665,33 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('clipboard page shows text with a copy button and does not serve the cwd', async () => {
+        const p = port + 24;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: process.cwd(), receive: false, clipboard: true,
+                clipboardText: true, getClipboardData: () => ({ isPath: false, text: 'secret clip text' }),
+                updateClipboardData: null, postUploadRedirectUrl: '',
+                shareAddress: 'http://127.0.0.1:' + p + '/clipboard',
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + p + '/clipboard');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.data.indexOf('secret clip text') !== -1, 'shows clipboard text');
+                        assert.ok(res.data.toLowerCase().indexOf('copy') !== -1, 'has a copy button');
+                        const dl = await request('http://127.0.0.1:' + p + '/clipboard.txt');
+                        assert.strictEqual(dl.status, 200);
+                        assert.strictEqual(dl.data, 'secret clip text');
+                        const share = await request('http://127.0.0.1:' + p + '/share/');
+                        assert.strictEqual(share.status, 404, 'cwd must not be served');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
     // Cleanup
     closeServers();
     try {

@@ -56,7 +56,6 @@ const openBrowser = (url) => {
         .option('ip', { describe: 'Specify your machine\'s public IP address', type: 'string' })
         .option('i', { alias: 'interface', describe: 'Network interface/adapter name to advertise (e.g. en0, eth0)', type: 'string' })
         .option('c', { alias: 'clipboard', describe: 'Share clipboard content', type: 'boolean' })
-        .option('t', { alias: 'tmpdir', describe: 'Set temporary directory for clipboard files', type: 'string' })
         .option('w', { alias: 'on-windows-native-terminal', describe: 'Enable QR code rendering in Windows native terminal', type: 'boolean' })
         .option('open', { describe: 'Open the QR code in a browser window on this computer', type: 'boolean' })
         .option('r', { alias: 'receive', describe: 'Receive files from another device', type: 'boolean' })
@@ -121,6 +120,7 @@ const openBrowser = (url) => {
 
     let sharePath;
     let fileName;
+    let clipboardText = false;
 
     if (options.ssl) {
         if (!options.cert) {
@@ -141,7 +141,10 @@ const openBrowser = (url) => {
         };
     }
 
-    const updateClipboardData = () => {
+    // Read the clipboard and classify it: either an existing filesystem path to
+    // share directly, or raw text to present on the clipboard page. Re-reads live
+    // so each request reflects the current clipboard contents.
+    const getClipboardData = () => {
         let clipboard;
         try {
             clipboard = require('clipboardy');
@@ -160,18 +163,22 @@ const openBrowser = (url) => {
         }
         utils.debugLog('clipboard file path:\n ' + filePath);
 
-        if (fs.existsSync(filePath)) {
-            utils.debugLog('clipboard file ' + filePath + ' found');
-            sharePath = filePath;
-        } else {
-            const outPath = options.tmpdir ? path.join(options.tmpdir, '.clipboard-tmp') : '.clipboard-tmp';
-            fs.writeFileSync(outPath, data);
-            sharePath = path.resolve(outPath);
+        if (filePath && fs.existsSync(filePath)) {
+            return { isPath: true, path: filePath, text: null };
         }
+        return { isPath: false, path: null, text: data };
     };
 
     if (options.clipboard) {
-        updateClipboardData();
+        const cb = getClipboardData();
+        if (cb.isPath) {
+            sharePath = cb.path;
+        } else {
+            clipboardText = true;
+            // Not served (the /share mount is skipped in clipboard-text mode); this
+            // only needs to be an existing directory to satisfy validation below.
+            sharePath = process.cwd();
+        }
     } else {
         sharePath = options._[0];
     }
@@ -191,13 +198,13 @@ const openBrowser = (url) => {
         process.exit(1);
     }
 
-    if (fs.lstatSync(sharePath).isFile()) {
+    if (!clipboardText && fs.lstatSync(sharePath).isFile()) {
         fileName = path.basename(sharePath);
         sharePath = path.dirname(sharePath);
     }
 
-    // A directory share (not a single file) can be downloaded as a zip.
-    const allowZip = !fileName;
+    // A directory share (not a single file, not clipboard text) can be zipped.
+    const allowZip = !fileName && !clipboardText;
 
     if (!options.port) {
         options.port = await portfinder.getPortPromise(config.portfinder);
@@ -210,7 +217,7 @@ const openBrowser = (url) => {
 
     const uploadAddress = baseUrl + '/receive';
     const file = fileName ? encodeURIComponent(fileName) : '';
-    const shareAddress = baseUrl + '/share/' + file;
+    const shareAddress = clipboardText ? (baseUrl + '/clipboard') : (baseUrl + '/share/' + file);
     const qrPageUrl = baseUrl + '/qr';
 
     const onStart = () => {
@@ -263,10 +270,12 @@ const openBrowser = (url) => {
         sharePath: sharePath,
         receive: options.receive,
         clipboard: options.clipboard,
-        updateClipboardData: updateClipboardData,
+        updateClipboardData: (options.clipboard && !clipboardText) ? getClipboardData : undefined,
         onStart: onStart,
         postUploadRedirectUrl: uploadAddress,
         shareAddress: shareAddress,
         allowZip: allowZip,
+        clipboardText: clipboardText,
+        getClipboardData: clipboardText ? getClipboardData : undefined,
     });
 })();
