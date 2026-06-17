@@ -62,7 +62,7 @@ const openBrowser = (url) => {
         .option('q', { alias: 'receive-port', describe: 'Set the port for receiving files', type: 'number' })
         .option('U', { alias: 'username', describe: 'Set username for basic authentication', type: 'string', default: 'user' })
         .option('P', { alias: 'password', describe: 'Set password for basic authentication', type: 'string' })
-        .option('S', { alias: 'ssl', describe: 'Enable HTTPS', type: 'boolean' })
+        .option('S', { alias: 'ssl', describe: 'Enable HTTPS (auto self-signed cert when -C/-K are not given)', type: 'boolean' })
         .option('C', { alias: 'cert', describe: 'Path to SSL certificate file', type: 'string' })
         .option('K', { alias: 'key', describe: 'Path to SSL private key file', type: 'string' })
         .option('tunnel', { describe: 'Show guide for sharing over the internet via tunnel services', type: 'boolean' })
@@ -121,25 +121,6 @@ const openBrowser = (url) => {
     let sharePath;
     let fileName;
     let clipboardText = false;
-
-    if (options.ssl) {
-        if (!options.cert) {
-            console.log('Specify the cert path.');
-            return;
-        }
-        if (!options.key) {
-            console.log('Specify the key path.');
-            return;
-        }
-        config.ssl = {
-            protocolModule: https,
-            protocol: 'https',
-            option: {
-                key: fs.readFileSync(path.resolve(process.cwd(), options.key)),
-                cert: fs.readFileSync(path.resolve(process.cwd(), options.cert)),
-            },
-        };
-    }
 
     // Read the clipboard and classify it: either an existing filesystem path to
     // share directly, or raw text to present on the clipboard page. Re-reads live
@@ -212,6 +193,51 @@ const openBrowser = (url) => {
 
     const interfaceCandidates = utils.getNetworkInterfaces();
     const host = options.ip || utils.getNetworkAddress(options.interface);
+
+    // HTTPS (-S): use the supplied cert/key when both are given, otherwise generate
+    // a self-signed certificate on the fly for the resolved host.
+    const wantHttps = options.ssl;
+    const usingProvidedCert = Boolean(options.cert && options.key);
+    if (wantHttps) {
+        if (usingProvidedCert) {
+            config.ssl = {
+                protocolModule: https,
+                protocol: 'https',
+                option: {
+                    key: fs.readFileSync(path.resolve(process.cwd(), options.key)),
+                    cert: fs.readFileSync(path.resolve(process.cwd(), options.cert)),
+                },
+            };
+        } else if (options.cert || options.key) {
+            console.log('For custom HTTPS, pass both --cert and --key. Omit both to use an auto self-signed certificate.');
+            process.exit(1);
+        } else {
+            let selfsigned;
+            try {
+                selfsigned = require('selfsigned');
+            } catch (e) {
+                console.error('Auto HTTPS is not available. Install selfsigned, or pass -C/-K.');
+                process.exit(1);
+            }
+            // An IP altName (type 7) must be a literal IP; a hostname in --ip would
+            // make selfsigned throw, so emit it as a DNS altName (type 2) instead.
+            const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.indexOf(':') !== -1;
+            const altNames = [{ type: 2, value: 'localhost' }];
+            altNames.unshift(isIp ? { type: 7, ip: host } : { type: 2, value: host });
+            let pems;
+            try {
+                pems = selfsigned.generate(
+                    [{ name: 'commonName', value: host }],
+                    { days: 365, keySize: 2048, algorithm: 'sha256', extensions: [{ name: 'subjectAltName', altNames: altNames }] }
+                );
+            } catch (e) {
+                console.error('Could not create a self-signed certificate; pass -C/-K instead.');
+                process.exit(1);
+            }
+            config.ssl = { protocolModule: https, protocol: 'https', option: { key: pems.private, cert: pems.cert } };
+        }
+    }
+
     const protocol = config.ssl.protocol;
     const baseUrl = protocol + '://' + host + ':' + options.port;
 
@@ -256,6 +282,10 @@ const openBrowser = (url) => {
                 console.log('\nAdvertising ' + host + '. Other addresses: ' + others);
                 console.log('  (wrong one? pick with --interface <name> or --ip <addr>)');
             }
+        }
+
+        if (wantHttps && !usingProvidedCert) {
+            console.log('Using a self-signed HTTPS certificate; your browser shows a one-time warning — that is expected.');
         }
 
         console.log('\nPress ctrl+c to stop sharing\n');
