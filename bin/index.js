@@ -35,6 +35,18 @@ const usage = [
     '  $ sharing /path/to/file-or-directory -S -C cert.pem -K key.pem',
 ].join('\n');
 
+// Open a URL in the host machine's default browser (best effort).
+const openBrowser = (url) => {
+    const { spawn } = require('child_process');
+    let cmd;
+    let args;
+    if (process.platform === 'darwin') { cmd = 'open'; args = [url]; }
+    else if (process.platform === 'win32') { cmd = 'cmd'; args = ['/c', 'start', '""', url]; }
+    else { cmd = 'xdg-open'; args = [url]; }
+    try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); }
+    catch (e) { /* ignore */ }
+};
+
 // Main
 (async () => {
     const options = yargs
@@ -46,6 +58,7 @@ const usage = [
         .option('c', { alias: 'clipboard', describe: 'Share clipboard content', type: 'boolean' })
         .option('t', { alias: 'tmpdir', describe: 'Set temporary directory for clipboard files', type: 'string' })
         .option('w', { alias: 'on-windows-native-terminal', describe: 'Enable QR code rendering in Windows native terminal', type: 'boolean' })
+        .option('open', { describe: 'Open the QR code in a browser window on this computer', type: 'boolean' })
         .option('r', { alias: 'receive', describe: 'Receive files from another device', type: 'boolean' })
         .option('q', { alias: 'receive-port', describe: 'Set the port for receiving files', type: 'number' })
         .option('U', { alias: 'username', describe: 'Set username for basic authentication', type: 'string', default: 'user' })
@@ -195,6 +208,7 @@ const usage = [
     const uploadAddress = baseUrl + '/receive';
     const file = fileName ? encodeURIComponent(fileName) : '';
     const shareAddress = baseUrl + '/share/' + file;
+    const qrPageUrl = baseUrl + '/qr';
 
     const onStart = () => {
         // Handle receive
@@ -218,6 +232,9 @@ const usage = [
         qrcode.generate(shareAddress, config.qrcode);
         console.log('access link: ' + shareAddress);
 
+        // QR fallback for terminals that can't render it (Windows native, unicode).
+        console.log("\nCan't scan the QR-Code? Open this in a browser on this computer:\n  " + qrPageUrl);
+
         // If several network addresses exist and the user didn't pin one, surface
         // them so a wrong-interface guess is easy to correct.
         if (!options.ip && !options.interface && interfaceCandidates.length > 1) {
@@ -232,6 +249,10 @@ const usage = [
         }
 
         console.log('\nPress ctrl+c to stop sharing\n');
+
+        if (options.open) {
+            openBrowser(protocol + '://localhost:' + options.port + '/qr');
+        }
     };
 
     app.start({

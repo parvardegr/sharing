@@ -472,6 +472,27 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('qr route renders a scannable image page', async () => {
+        const p = port + 22;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '',
+                shareAddress: 'http://127.0.0.1:' + p + '/share/',
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + p + '/qr');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.data.indexOf('data:image') !== -1, 'should embed a QR image');
+                        assert.ok(res.data.indexOf('/share/') !== -1, 'should show the share link');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
     // Cleanup
     closeServers();
     try {

@@ -42,6 +42,15 @@ const fixListingLinks = (html, mountPath) =>
         return 'href="' + mountPath + encodePathSegments(decodedPath) + '"';
     });
 
+// Escape a string for safe interpolation into HTML text/attributes.
+const escapeHtml = (s) =>
+    String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
 const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onStart, postUploadRedirectUrl, shareAddress }) => {
     const app = express();
 
@@ -53,6 +62,40 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
             users: { [config.auth.username]: config.auth.password },
         }));
     }
+
+    // QR fallback page: renders the share (and upload) URL as a scannable image,
+    // for terminals that cannot draw the QR (Windows native terminal, unicode paths).
+    app.get('/qr', async (req, res) => {
+        let QRCode;
+        try {
+            QRCode = require('qrcode');
+        } catch (e) {
+            return res.status(501).type('text').send('QR image support is not installed (npm install qrcode).');
+        }
+        const targets = [];
+        if (receive) targets.push({ label: 'Scan to upload a file', url: postUploadRedirectUrl });
+        if (shareAddress) targets.push({ label: clipboard ? 'Scan to open the clipboard' : 'Scan to open the share', url: shareAddress });
+        try {
+            const blocks = await Promise.all(targets.map(async (t) => {
+                const dataUrl = await QRCode.toDataURL(t.url, { margin: 2, width: 320 });
+                return '<section><h2>' + escapeHtml(t.label) + '</h2>' +
+                    '<img alt="QR code" src="' + dataUrl + '" />' +
+                    '<p><a href="' + escapeHtml(t.url) + '">' + escapeHtml(t.url) + '</a></p></section>';
+            }));
+            res.type('html').send(
+                '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+                '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+                '<title>sharing — QR</title><style>' +
+                'body{font-family:system-ui,sans-serif;margin:0;padding:24px;text-align:center;' +
+                'background:#0f1020;color:#eee}section{margin:24px auto;max-width:360px}' +
+                'img{width:100%;max-width:320px;height:auto;background:#fff;padding:12px;border-radius:12px}' +
+                'a{color:#8ab4ff;word-break:break-all}h1{font-weight:600}</style></head>' +
+                '<body><h1>📷 Scan with your phone</h1>' + blocks.join('') + '</body></html>'
+            );
+        } catch (err) {
+            res.status(500).type('text').send('Could not render QR: ' + (err.message || String(err)));
+        }
+    });
 
     // Routing
     if (receive) {
