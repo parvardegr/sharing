@@ -126,6 +126,34 @@ function request(url) {
     });
 }
 
+// POST several files in a single multipart/form-data request, all under the same field.
+function postMultipart(port, urlPath, parts) {
+    return new Promise((resolve, reject) => {
+        const boundary = '----testboundary' + Date.now();
+        const pieces = [];
+        parts.forEach((p) => {
+            pieces.push('--' + boundary + '\r\n');
+            pieces.push('Content-Disposition: form-data; name="' + p.field + '"; filename="' + p.filename + '"\r\n');
+            pieces.push('Content-Type: application/octet-stream\r\n\r\n');
+            pieces.push(p.content);
+            pieces.push('\r\n');
+        });
+        pieces.push('--' + boundary + '--\r\n');
+        const body = Buffer.from(pieces.join(''), 'utf8');
+        const req = http.request({
+            hostname: '127.0.0.1', port: port, path: urlPath, method: 'POST',
+            headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length },
+        }, (res) => {
+            let data = '';
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => resolve({ status: res.statusCode, data: data }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
 async function integrationTests() {
     // Create a temp directory with test files
     const tmpDir = path.join(__dirname, '.tmp-test-dir');
@@ -493,17 +521,106 @@ async function integrationTests() {
         });
     });
 
+    await asyncTest('uploads multiple files in one request, never overwriting or escaping the dir', async () => {
+        const p = port + 20;
+        const recvDir = path.join(tmpDir, 'recv');
+        if (!fs.existsSync(recvDir)) fs.mkdirSync(recvDir);
+        fs.writeFileSync(path.join(recvDir, 'a.txt'), 'pre-existing');
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: recvDir, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await postMultipart(p, '/upload', [
+                            { field: 'selected', filename: 'a.txt', content: 'AAA' },
+                            { field: 'selected', filename: 'b.txt', content: 'BBB' },
+                            { field: 'selected', filename: '../escape.txt', content: 'CCC' },
+                        ]);
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(fs.readFileSync(path.join(recvDir, 'a.txt'), 'utf8'), 'pre-existing');
+                        assert.ok(fs.existsSync(path.join(recvDir, 'a (1).txt')), 'collision-safe rename');
+                        assert.ok(fs.existsSync(path.join(recvDir, 'b.txt')), 'b.txt saved');
+                        assert.ok(fs.existsSync(path.join(recvDir, 'escape.txt')), 'escape saved as basename');
+                        assert.ok(!fs.existsSync(path.join(tmpDir, 'escape.txt')), 'must not escape the share dir');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('two same-named files in one request are both kept (no clobber)', async () => {
+        const p = port + 25;
+        const d = path.join(tmpDir, 'recv2');
+        if (!fs.existsSync(d)) fs.mkdirSync(d);
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: d, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await postMultipart(p, '/upload', [
+                            { field: 'selected', filename: 'dup.txt', content: 'FIRST' },
+                            { field: 'selected', filename: 'dup.txt', content: 'SECOND' },
+                        ]);
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(fs.existsSync(path.join(d, 'dup.txt')), 'first kept');
+                        assert.ok(fs.existsSync(path.join(d, 'dup (1).txt')), 'second kept under a fresh name');
+                        const c1 = fs.readFileSync(path.join(d, 'dup.txt'), 'utf8');
+                        const c2 = fs.readFileSync(path.join(d, 'dup (1).txt'), 'utf8');
+                        assert.ok((c1 === 'FIRST' && c2 === 'SECOND') || (c1 === 'SECOND' && c2 === 'FIRST'), 'both contents preserved');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('upload never writes through a symlink to escape the share dir', async () => {
+        const p = port + 26;
+        const d = path.join(tmpDir, 'recv3');
+        if (!fs.existsSync(d)) fs.mkdirSync(d);
+        const outside = path.join(tmpDir, 'OUTSIDE-secret.txt');
+        try { fs.unlinkSync(outside); } catch (e) { /* ignore */ }
+        let symlinked = true;
+        try { fs.symlinkSync(outside, path.join(d, 'evil.txt')); } catch (e) { symlinked = false; }
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: d, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        await postMultipart(p, '/upload', [{ field: 'selected', filename: 'evil.txt', content: 'PWNED' }]);
+                        assert.ok(!fs.existsSync(outside), 'must not write through the symlink to an outside path');
+                        if (symlinked) {
+                            assert.ok(fs.existsSync(path.join(d, 'evil (1).txt')), 'should land under a safe, non-symlink name');
+                        }
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
     // Cleanup
     closeServers();
     try {
-        fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
-        fs.unlinkSync(path.join(tmpDir, 'File #1.txt'));
-        fs.unlinkSync(path.join(tmpDir, 'page.html'));
-        trickyNames.forEach((n) => fs.unlinkSync(path.join(tmpDir, n)));
-        fs.unlinkSync(path.join(subDir, 'nested.txt'));
-        fs.rmdirSync(subDir);
-        fs.rmdirSync(tmpDir);
-    } catch (e) { /* ignore */ }
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (e) {
+        try {
+            fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
+            fs.unlinkSync(path.join(tmpDir, 'File #1.txt'));
+            fs.unlinkSync(path.join(tmpDir, 'page.html'));
+            trickyNames.forEach((n) => fs.unlinkSync(path.join(tmpDir, n)));
+            fs.unlinkSync(path.join(subDir, 'nested.txt'));
+            fs.rmdirSync(subDir);
+            fs.rmdirSync(tmpDir);
+        } catch (e2) { /* ignore */ }
+    }
 }
 
 integrationTests().then(() => {

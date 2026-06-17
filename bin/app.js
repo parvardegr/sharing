@@ -51,7 +51,49 @@ const escapeHtml = (s) =>
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
-const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onStart, postUploadRedirectUrl, shareAddress }) => {
+// Resolve a destination for an uploaded file using only its basename (any path
+// components in the supplied name are discarded, so a crafted "../" name cannot
+// escape the share directory). Never overwrites an existing file, never reuses a
+// name already reserved in this request (so two same-named files in one upload
+// don't clobber each other), and never writes through a symlink (a dangling or
+// real symlink at the target would otherwise let a write escape the share dir).
+const destForUpload = (root, rawName, reserved) => {
+    const base = path.basename(String(rawName).replace(/\\/g, '/'));
+    if (!base || base === '.' || base === '..') return null;
+    const isSymlink = (p) => {
+        try { return fs.lstatSync(p).isSymbolicLink(); }
+        catch (e) { return false; } // ENOENT -> no entry, safe
+    };
+    const taken = (p) => reserved.has(p) || fs.existsSync(p) || isSymlink(p);
+    let dest = path.join(root, base);
+    if (!taken(dest)) {
+        reserved.add(dest);
+        return dest;
+    }
+    const ext = path.extname(base);
+    const stem = path.basename(base, ext);
+    let i = 1;
+    do {
+        dest = path.join(root, stem + ' (' + i + ')' + ext);
+        i++;
+    } while (taken(dest));
+    reserved.add(dest);
+    return dest;
+};
+
+const start = ({
+    port,
+    sharePath,
+    receive,
+    clipboard,
+    updateClipboardData,
+    onStart,
+    postUploadRedirectUrl,
+    shareAddress,
+    // Optional capabilities (default off -> behaviour identical to before):
+    once,             // stop the server after the first completed transfer
+    onFinish,         // called when --once completes a transfer (the caller owns process exit)
+} = {}) => {
     const app = express();
 
     // Basic Auth
@@ -62,6 +104,21 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
             users: { [config.auth.username]: config.auth.password },
         }));
     }
+
+    let server;
+    let onceDone = false;
+    const finishOnce = (reason) => {
+        if (!once || onceDone) return;
+        onceDone = true;
+        console.log('\nTransfer complete (' + reason + '). Stopping share.');
+        // app.js stays a pure server module: it closes the listener and hands control
+        // back to the caller via onFinish (which owns whether to exit the process).
+        let done = false;
+        const finish = () => { if (done) return; done = true; if (onFinish) onFinish(reason); };
+        if (server) server.close(finish); else finish();
+        // Safety net in case a keep-alive socket keeps the server open.
+        setTimeout(finish, 1500).unref();
+    };
 
     // QR fallback page: renders the share (and upload) URL as a scannable image,
     // for terminals that cannot draw the QR (Windows native terminal, unicode paths).
@@ -114,15 +171,35 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
                 return res.status(400).send('No files were received.');
             }
 
-            const selectedFile = req.files.selected;
-            const selectedFileName = Buffer.from(selectedFile.name, 'ascii').toString('utf8');
-            const uploadPath = path.join(path.resolve(sharePath), selectedFileName);
-            utils.debugLog('upload path: ' + uploadPath);
+            // express-fileupload returns a single object for one file and an array
+            // when several files share the field name ("selected"); normalise to an array.
+            const files = [].concat(req.files.selected).filter(Boolean);
+            if (files.length === 0) {
+                return res.status(400).send('No files were received.');
+            }
 
-            selectedFile.mv(uploadPath)
+            const root = path.resolve(sharePath);
+            const saved = [];
+            // Reserve each destination synchronously as we iterate, so several files
+            // sharing a basename in one request each get a distinct, fresh name.
+            const reserved = new Set();
+            const tasks = files.map((file) => {
+                const decodedName = Buffer.from(file.name, 'ascii').toString('utf8');
+                const dest = destForUpload(root, decodedName, reserved);
+                if (!dest) return Promise.reject(new Error('Invalid file name: ' + file.name));
+                utils.debugLog('upload path: ' + dest);
+                return file.mv(dest).then(() => { saved.push(dest); });
+            });
+
+            Promise.all(tasks)
                 .then(() => {
-                    console.log('File received: ' + uploadPath);
-                    res.type('text').send('File shared successfully at ' + uploadPath);
+                    saved.forEach((p) => console.log('File received: ' + p));
+                    res.type('text').send(
+                        saved.length === 1
+                            ? 'File shared successfully at ' + saved[0]
+                            : saved.length + ' files shared successfully.'
+                    );
+                    finishOnce('upload');
                 })
                 .catch((err) => {
                     res.status(500).send(err.message || String(err));
@@ -169,7 +246,7 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
     });
 
     // Listen
-    const server = config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, onStart);
+    server = config.ssl.protocolModule.createServer(config.ssl.option, app).listen(port, onStart);
     return server;
 };
 
