@@ -109,8 +109,29 @@ async function integrationTests() {
     // Create a temp directory with test files
     const tmpDir = path.join(__dirname, '.tmp-test-dir');
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+    const subDir = path.join(tmpDir, 'subdir');
+    if (!fs.existsSync(subDir)) fs.mkdirSync(subDir);
     fs.writeFileSync(path.join(tmpDir, 'hello.txt'), 'hello world');
     fs.writeFileSync(path.join(tmpDir, 'File #1.txt'), 'hashtag content');
+    fs.writeFileSync(path.join(tmpDir, 'page.html'), '<html><body><a href="/somewhere">link</a></body></html>');
+    fs.writeFileSync(path.join(subDir, 'nested.txt'), 'nested content');
+    // Names with characters that break naive link generation (URL-significant
+    // and non-ASCII). These must all stay reachable from the directory listing.
+    const trickyNames = ['100%done.txt', 'a&b.txt', 'what?.txt', 'café.txt'];
+    trickyNames.forEach((n) => fs.writeFileSync(path.join(tmpDir, n), 'tricky:' + n));
+
+    // Decode the HTML entities serve-handler uses for '/' in listing links,
+    // mimicking how a browser resolves the href before navigating.
+    function decodeHref(s) {
+        return s
+            .replace(/&#0*47;/gi, '/')
+            .replace(/&#x0*2f;/gi, '/')
+            .replace(/&#0*38;/gi, '&')
+            .replace(/&amp;/gi, '&');
+    }
+    function listingHrefs(body) {
+        return [...body.matchAll(/href="([^"]*)"/g)].map((m) => decodeHref(m[1]));
+    }
 
     const port = 19876;
 
@@ -179,6 +200,142 @@ async function integrationTests() {
                         assert.ok(res.data.includes('%23'), 'Directory listing should encode # as %23');
                         assert.ok(!/href="[^"]*(?<!&)#[^"]*"/.test(res.data), 'Directory listing should not have raw # in href');
                         assert.ok(!res.data.includes('&%2347;'), 'Directory listing should not break &#47; HTML entities');
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                postUploadRedirectUrl: '',
+                shareAddress: '',
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('directory listing links keep the /share prefix and are reachable', async () => {
+        const listingPort = port + 10;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: listingPort,
+                sharePath: tmpDir,
+                receive: false,
+                clipboard: false,
+                updateClipboardData: null,
+                onStart: async () => {
+                    try {
+                        const base = 'http://127.0.0.1:' + listingPort;
+                        const listing = await request(base + '/share/');
+                        assert.strictEqual(listing.status, 200);
+                        const hrefs = listingHrefs(listing.data);
+                        assert.ok(hrefs.length > 0, 'Listing should contain links');
+                        // Every link must be reachable when followed like a browser
+                        // (resolved relative to /share/) — i.e. it must not 404.
+                        for (const href of hrefs) {
+                            const target = new URL(href, base + '/share/').pathname;
+                            assert.ok(
+                                target.startsWith('/share'),
+                                'Listing link should stay under /share, got: ' + target
+                            );
+                            const res = await request(base + target);
+                            assert.ok(
+                                res.status < 400,
+                                'Listing link ' + target + ' should be reachable, got ' + res.status
+                            );
+                        }
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                postUploadRedirectUrl: '',
+                shareAddress: '',
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('subdirectory is browsable and nested files are downloadable', async () => {
+        const nestedPort = port + 11;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: nestedPort,
+                sharePath: tmpDir,
+                receive: false,
+                clipboard: false,
+                updateClipboardData: null,
+                onStart: async () => {
+                    try {
+                        const base = 'http://127.0.0.1:' + nestedPort;
+                        const sub = await request(base + '/share/subdir/');
+                        assert.strictEqual(sub.status, 200, 'Subdirectory listing should load');
+                        const nested = await request(base + '/share/subdir/nested.txt');
+                        assert.strictEqual(nested.status, 200);
+                        assert.strictEqual(nested.data, 'nested content');
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                postUploadRedirectUrl: '',
+                shareAddress: '',
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('files with URL-significant and non-ASCII names download via their listing link', async () => {
+        const trickyPort = port + 13;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: trickyPort,
+                sharePath: tmpDir,
+                receive: false,
+                clipboard: false,
+                updateClipboardData: null,
+                onStart: async () => {
+                    try {
+                        const base = 'http://127.0.0.1:' + trickyPort;
+                        const listing = await request(base + '/share/');
+                        const hrefs = listingHrefs(listing.data);
+                        // Each tricky file must appear in the listing and be
+                        // downloadable with its exact original bytes by following
+                        // the link the way a browser does.
+                        for (const name of trickyNames) {
+                            const href = hrefs.find((h) => decodeURIComponent(h).endsWith('/' + name));
+                            assert.ok(href, 'Listing should contain a link for "' + name + '"');
+                            const target = new URL(href, base + '/share/');
+                            const res = await request(base + target.pathname);
+                            assert.strictEqual(res.status, 200, 'Download of "' + name + '" should succeed, got ' + res.status);
+                            assert.strictEqual(res.data, 'tricky:' + name, 'Content of "' + name + '" should round-trip');
+                        }
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                },
+                postUploadRedirectUrl: '',
+                shareAddress: '',
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('html files are served as-is, not redirected or rewritten', async () => {
+        const htmlPort = port + 12;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: htmlPort,
+                sharePath: tmpDir,
+                receive: false,
+                clipboard: false,
+                updateClipboardData: null,
+                onStart: async () => {
+                    try {
+                        const res = await request('http://127.0.0.1:' + htmlPort + '/share/page.html');
+                        assert.strictEqual(res.status, 200, 'HTML file should be served directly, not redirected');
+                        // The file's own links must not be rewritten with the /share prefix.
+                        assert.ok(res.data.includes('href="/somewhere"'), 'Shared HTML content must be left intact');
+                        assert.ok(!res.data.includes('/share/somewhere'), 'Shared HTML links must not be rewritten');
                         resolve();
                     } catch (err) {
                         reject(err);
@@ -299,6 +456,10 @@ async function integrationTests() {
     try {
         fs.unlinkSync(path.join(tmpDir, 'hello.txt'));
         fs.unlinkSync(path.join(tmpDir, 'File #1.txt'));
+        fs.unlinkSync(path.join(tmpDir, 'page.html'));
+        trickyNames.forEach((n) => fs.unlinkSync(path.join(tmpDir, n)));
+        fs.unlinkSync(path.join(subDir, 'nested.txt'));
+        fs.rmdirSync(subDir);
         fs.rmdirSync(tmpDir);
     } catch (e) { /* ignore */ }
 }

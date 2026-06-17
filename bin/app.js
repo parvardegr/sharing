@@ -10,6 +10,38 @@ const utils = require('./utils');
 
 const receiveFormHtml = fs.readFileSync(path.join(__dirname, 'receive-form.html'), 'utf8');
 
+// serve-handler's directory listing HTML-encodes file names (e.g. '/' -> '&#47;',
+// '&' -> '&#38;') but never URL-encodes them, and it is unaware that we mount it
+// under /share. The result is links that 404 (missing prefix) or 400/404 on any
+// name containing '#', '%', '?', '&', spaces, unicode, etc. We rebuild each link
+// into a valid URL: decode the entities serve-handler emits, percent-encode every
+// path segment, and re-add the mount prefix.
+// The exact set of entities serve-handler's encodeHTML produces.
+const HTML_ENTITIES = {
+    '&#38;': '&', '&#60;': '<', '&#62;': '>', '&#34;': '"', '&#39;': "'", '&#47;': '/',
+};
+
+const decodeServeHandlerEntities = (str) =>
+    str.replace(/&#(?:38|60|62|34|39|47);/g, (m) => HTML_ENTITIES[m] || m);
+
+// Percent-encode a root-absolute path one segment at a time, preserving the
+// slashes that delimit segments (and any leading/trailing slash).
+const encodePathSegments = (decodedPath) =>
+    decodedPath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+
+// Rewrite the links in a serve-handler directory listing so they are valid,
+// routable URLs under the given mount prefix.
+const fixListingLinks = (html, mountPath) =>
+    html.replace(/href="([^"]*)"/g, (match, rawHref) => {
+        const decodedPath = decodeServeHandlerEntities(rawHref);
+        // serve-handler only ever emits root-absolute links; anything else is
+        // left untouched so we never mangle unexpected markup.
+        if (!decodedPath.startsWith('/')) {
+            return match;
+        }
+        return 'href="' + mountPath + encodePathSegments(decodedPath) + '"';
+    });
+
 const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onStart, postUploadRedirectUrl, shareAddress }) => {
     const app = express();
 
@@ -59,26 +91,37 @@ const start = ({ port, sharePath, receive, clipboard, updateClipboardData, onSta
         if (clipboard && updateClipboardData) {
             updateClipboardData();
         }
-        // Strip the /share prefix so serve-handler resolves files from the root of sharePath
+        // serve-handler is unaware that it is mounted under /share. Express has
+        // already stripped that prefix from req.url, so serve-handler resolves
+        // files from the root of sharePath (good) but also builds every
+        // directory-listing link as root-absolute *without* the /share prefix
+        // (e.g. "/file.txt", "/subdir/", "/"). Browsing or downloading by
+        // clicking those links then navigates to a path Express does not route,
+        // producing a 404. The mount prefix is req.baseUrl ('/share').
+        const mountPath = req.baseUrl || '/share';
         const originalUrl = req.url;
         req.url = req.url.replace(/^\/share/, '') || '/';
 
-        // Wrap response to fix special characters in directory listing URLs.
-        // serve-handler does not percent-encode characters like '#' in href
-        // attributes, which causes browsers to misinterpret them (e.g. '#' is
-        // treated as a fragment delimiter, leading to 404 errors).
+        // Rewrite the generated directory-listing links before sending them so
+        // they are valid URLs that route back through /share (see fixListingLinks).
+        // Gated on serve-handler's listing signature ('id="files"') so it never
+        // touches the contents of an actual shared .html file.
         const originalEnd = res.end.bind(res);
-        res.end = function (body, encoding) {
-            if (typeof body === 'string' && res.getHeader('content-type') && String(res.getHeader('content-type')).includes('text/html')) {
-                body = body.replace(/href="([^"]*)"/g, (match, href) => {
-                    const encoded = href.replace(/(?<!&)#/g, '%23');
-                    return 'href="' + encoded + '"';
-                });
+        res.end = function (body, ...rest) {
+            const contentType = res.getHeader('content-type');
+            const isHtml = contentType && String(contentType).includes('text/html');
+            if (typeof body === 'string' && isHtml && body.includes('id="files"')) {
+                body = fixListingLinks(body, mountPath);
             }
-            return originalEnd(body, encoding);
+            return originalEnd(body, ...rest);
         };
 
-        handler(req, res, { public: sharePath, etag: true });
+        // cleanUrls defaults to true in serve-handler, which makes it answer a
+        // request for an .html file with a 301 to the extension-less path. That
+        // redirect target is built from the prefix-stripped URL, so it both
+        // drops /share (-> 404) and is unwanted for a file server: we want files
+        // served and downloaded as-is. Disabling it avoids the broken redirect.
+        handler(req, res, { public: sharePath, etag: true, cleanUrls: false });
         req.url = originalUrl;
     });
 
