@@ -326,6 +326,10 @@ const openBrowser = (url) => {
             console.log('\n⚠  Anyone on your network can open this share. Restrict it with -U <user> -P <pass>, or use --secure.');
         }
 
+        // Connectivity hint — the #1 reason a scan "works" but the page won't load.
+        console.log('\nNot loading on your phone? Check that both devices are on the same Wi-Fi,');
+        console.log('and that your firewall allows port ' + options.port + '.');
+
         if (timeoutMs) {
             console.log('\nThis share will stop automatically in ' + options.timeout + '.');
         }
