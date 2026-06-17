@@ -196,6 +196,9 @@ const openBrowser = (url) => {
         sharePath = path.dirname(sharePath);
     }
 
+    // A directory share (not a single file) can be downloaded as a zip.
+    const allowZip = !fileName;
+
     if (!options.port) {
         options.port = await portfinder.getPortPromise(config.portfinder);
     }
@@ -264,5 +267,6 @@ const openBrowser = (url) => {
         onStart: onStart,
         postUploadRedirectUrl: uploadAddress,
         shareAddress: shareAddress,
+        allowZip: allowZip,
     });
 })();

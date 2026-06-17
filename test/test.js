@@ -126,6 +126,17 @@ function request(url) {
     });
 }
 
+// Collect a (possibly binary) response as a Buffer.
+function requestRaw(url) {
+    return new Promise((resolve, reject) => {
+        http.get(url, (res) => {
+            const chunks = [];
+            res.on('data', (chunk) => { chunks.push(chunk); });
+            res.on('end', () => resolve({ status: res.statusCode, buf: Buffer.concat(chunks), headers: res.headers }));
+        }).on('error', reject);
+    });
+}
+
 // POST several files in a single multipart/form-data request, all under the same field.
 function postMultipart(port, urlPath, parts) {
     return new Promise((resolve, reject) => {
@@ -598,6 +609,54 @@ async function integrationTests() {
                         if (symlinked) {
                             assert.ok(fs.existsSync(path.join(d, 'evil (1).txt')), 'should land under a safe, non-symlink name');
                         }
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('zip route streams a zip of the shared directory and rejects traversal', async () => {
+        const p = port + 21;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: false, clipboard: false, allowZip: true,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await requestRaw('http://127.0.0.1:' + p + '/zip');
+                        assert.strictEqual(res.status, 200);
+                        assert.ok(res.buf.length > 0, 'zip should not be empty');
+                        assert.strictEqual(res.buf.slice(0, 2).toString('latin1'), 'PK', 'response should be a zip');
+                        const bad = await request('http://127.0.0.1:' + p + '/zip?path=../../etc');
+                        assert.ok(bad.status === 400 || bad.status === 404, 'traversal must be rejected, got ' + bad.status);
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('zip skips symlinks (does not disclose their targets)', async () => {
+        const p = port + 29;
+        const d = path.join(tmpDir, 'ziptest');
+        if (!fs.existsSync(d)) fs.mkdirSync(d);
+        fs.writeFileSync(path.join(d, 'real.txt'), 'real');
+        const linkName = 'ZZLINKZZ';
+        try { fs.symlinkSync('/etc/hosts', path.join(d, linkName)); } catch (e) { /* ignore */ }
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: d, receive: false, clipboard: false, allowZip: true,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await requestRaw('http://127.0.0.1:' + p + '/zip');
+                        assert.strictEqual(res.status, 200);
+                        assert.strictEqual(res.buf.slice(0, 2).toString('latin1'), 'PK', 'should be a zip');
+                        assert.ok(!res.buf.includes(Buffer.from(linkName)), 'symlink name must not appear in the zip');
+                        assert.ok(res.buf.includes(Buffer.from('real.txt')), 'real file should be in the zip');
                         resolve();
                     } catch (e) { reject(e); }
                 },

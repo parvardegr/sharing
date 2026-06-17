@@ -81,6 +81,23 @@ const destForUpload = (root, rawName, reserved) => {
     return dest;
 };
 
+// Recursively add a directory's *regular files* to an archive, skipping symlinks
+// (which serve-handler also refuses to follow) so their outside-the-share targets
+// are never disclosed or followed.
+const addDirToArchive = (archive, dir, base) => {
+    let names;
+    try { names = fs.readdirSync(dir); } catch (e) { return; }
+    for (const name of names) {
+        const abs = path.join(dir, name);
+        let st;
+        try { st = fs.lstatSync(abs); } catch (e) { continue; }
+        if (st.isSymbolicLink()) continue;
+        const rel = base ? base + '/' + name : name;
+        if (st.isDirectory()) addDirToArchive(archive, abs, rel);
+        else if (st.isFile()) archive.file(abs, { name: rel });
+    }
+};
+
 const start = ({
     port,
     sharePath,
@@ -91,6 +108,7 @@ const start = ({
     postUploadRedirectUrl,
     shareAddress,
     // Optional capabilities (default off -> behaviour identical to before):
+    allowZip,         // expose the zip route and inject a "Download as .zip" link into listings
     once,             // stop the server after the first completed transfer
     onFinish,         // called when --once completes a transfer (the caller owns process exit)
 } = {}) => {
@@ -207,6 +225,43 @@ const start = ({
         });
     }
 
+    // Download an entire shared directory (or a sub-folder via ?path=) as a zip.
+    if (allowZip) {
+        app.get('/zip', (req, res) => {
+            const root = path.resolve(sharePath);
+            let target = root;
+            if (req.query.path) {
+                const rel = String(req.query.path).replace(/^[/\\]+/, '');
+                const resolved = path.resolve(root, rel);
+                if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+                    return res.status(400).type('text').send('Invalid path.');
+                }
+                target = resolved;
+            }
+            if (!fs.existsSync(target) || !fs.lstatSync(target).isDirectory()) {
+                return res.status(404).type('text').send('Not a directory.');
+            }
+            let archiver;
+            try {
+                archiver = require('archiver');
+            } catch (e) {
+                return res.status(501).type('text').send('Zip support is not installed (npm install archiver).');
+            }
+            res.attachment((path.basename(target) || 'share') + '.zip');
+            const archive = archiver('zip', { zlib: { level: 6 } });
+            archive.on('error', (err) => {
+                // Once headers/body are out, we can't switch to an error page without
+                // producing a corrupt-but-200 zip; abort the connection instead.
+                if (!res.headersSent) res.status(500).type('text').end(String(err && err.message || err));
+                else res.destroy(err);
+            });
+            res.on('finish', () => finishOnce('download'));
+            archive.pipe(res);
+            addDirToArchive(archive, target, '');
+            archive.finalize();
+        });
+    }
+
     app.use('/share', (req, res) => {
         if (clipboard && updateClipboardData) {
             updateClipboardData();
@@ -221,17 +276,28 @@ const start = ({
         const mountPath = req.baseUrl || '/share';
         const originalUrl = req.url;
         req.url = req.url.replace(/^\/share/, '') || '/';
+        // The directory currently being listed, relative to sharePath — used to
+        // point the injected "Download as .zip" link at this exact folder.
+        const listingDir = decodeURIComponent((req.url.split('?')[0]) || '/');
 
         // Rewrite the generated directory-listing links before sending them so
-        // they are valid URLs that route back through /share (see fixListingLinks).
-        // Gated on serve-handler's listing signature ('id="files"') so it never
-        // touches the contents of an actual shared .html file.
+        // they are valid URLs that route back through /share (see fixListingLinks),
+        // and inject a "Download as .zip" link when zip support is enabled. Gated on
+        // serve-handler's listing signature ('id="files"') so it never touches the
+        // contents of an actual shared .html file.
         const originalEnd = res.end.bind(res);
         res.end = function (body, ...rest) {
             const contentType = res.getHeader('content-type');
             const isHtml = contentType && String(contentType).includes('text/html');
             if (typeof body === 'string' && isHtml && body.includes('id="files"')) {
                 body = fixListingLinks(body, mountPath);
+                if (allowZip) {
+                    const zipHref = '/zip?path=' + encodeURIComponent(listingDir);
+                    const bar = '<div style="padding:10px 14px;background:#005bff;text-align:center">' +
+                        '<a href="' + zipHref + '" style="color:#fff;font-family:system-ui,sans-serif;font-weight:600;text-decoration:none">' +
+                        '📦 Download this folder as .zip</a></div>';
+                    body = body.replace(/(<body[^>]*>)/i, '$1' + bar);
+                }
             }
             return originalEnd(body, ...rest);
         };
