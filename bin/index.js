@@ -14,38 +14,45 @@ const utils = require('./utils');
 // Usage
 const usage = [
     '',
-    'Usage:',
-    '• Share file or directory',
-    '$ sharing /path/to/file-or-directory',
+    'sharing — quickly share files, directories, and clipboard content from your',
+    'terminal to any device with a browser.',
     '',
-    '• Share clipboard',
-    '$ sharing -c',
+    'Examples:',
     '',
-    '• Receive file',
-    '$ sharing /destination/directory --receive;',
+    '  Share file or directory',
+    '  $ sharing /path/to/file-or-directory',
     '',
-    '• Share file with Basic Authentication',
-    '$ sharing /path/to/file-or-directory -U user -P password  # also works with --receive',
+    '  Share clipboard content',
+    '  $ sharing -c',
+    '',
+    '  Receive files from another device',
+    '  $ sharing /destination/directory --receive',
+    '',
+    '  Share with basic authentication',
+    '  $ sharing /path/to/file-or-directory -U user -P password',
+    '',
+    '  Share over HTTPS',
+    '  $ sharing /path/to/file-or-directory -S -C cert.pem -K key.pem',
 ].join('\n');
 
 // Main
 (async () => {
     const options = yargs
         .usage(usage)
-        .option('debug', { describe: 'Enable debugging logs', type: 'boolean', default: false })
-        .option('p', { alias: 'port', describe: 'Change default port', type: 'number' })
-        .option('ip', { describe: 'Your machine public ip address', type: 'string' })
-        .option('c', { alias: 'clipboard', describe: 'Share Clipboard', type: 'boolean' })
-        .option('t', { alias: 'tmpdir', describe: 'Clipboard temporary files directory', type: 'string' })
-        .option('w', { alias: 'on-windows-native-terminal', describe: 'Enable QR-Code support for windows native terminal', type: 'boolean' })
-        .option('r', { alias: 'receive', describe: 'Receive files', type: 'boolean' })
-        .option('q', { alias: 'receive-port', describe: 'Change receive default port', type: 'number' })
-        .option('U', { alias: 'username', describe: 'Set basic authentication username', type: 'string', default: 'user' })
-        .option('P', { alias: 'password', describe: 'Set basic authentication password', type: 'string' })
-        .option('S', { alias: 'ssl', describe: 'Enable https', type: 'boolean' })
-        .option('C', { alias: 'cert', describe: 'Path to ssl cert file', type: 'string' })
-        .option('K', { alias: 'key', describe: 'Path to ssl key file', type: 'string' })
-        .option('tunnel', { describe: 'Show guide for exposing your share over the internet using tunnel services', type: 'boolean' })
+        .option('debug', { describe: 'Enable debug logging', type: 'boolean', default: false })
+        .option('p', { alias: 'port', describe: 'Set the server port (default: auto-assigned)', type: 'number' })
+        .option('ip', { describe: 'Specify your machine\'s public IP address', type: 'string' })
+        .option('c', { alias: 'clipboard', describe: 'Share clipboard content', type: 'boolean' })
+        .option('t', { alias: 'tmpdir', describe: 'Set temporary directory for clipboard files', type: 'string' })
+        .option('w', { alias: 'on-windows-native-terminal', describe: 'Enable QR code rendering in Windows native terminal', type: 'boolean' })
+        .option('r', { alias: 'receive', describe: 'Receive files from another device', type: 'boolean' })
+        .option('q', { alias: 'receive-port', describe: 'Set the port for receiving files', type: 'number' })
+        .option('U', { alias: 'username', describe: 'Set username for basic authentication', type: 'string', default: 'user' })
+        .option('P', { alias: 'password', describe: 'Set password for basic authentication', type: 'string' })
+        .option('S', { alias: 'ssl', describe: 'Enable HTTPS', type: 'boolean' })
+        .option('C', { alias: 'cert', describe: 'Path to SSL certificate file', type: 'string' })
+        .option('K', { alias: 'key', describe: 'Path to SSL private key file', type: 'string' })
+        .option('tunnel', { describe: 'Show guide for sharing over the internet via tunnel services', type: 'boolean' })
         .help(true)
         .argv;
 
@@ -156,7 +163,10 @@ const usage = [
     }
 
     if (!sharePath) {
-        console.log('Specify directory or file path.');
+        console.error('Error: No file or directory specified.\n');
+        console.error('Usage:  sharing <path>       Share a file or directory');
+        console.error('        sharing -c           Share clipboard content');
+        console.error('        sharing --help       Show all available options');
         process.exit(1);
     }
 
