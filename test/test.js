@@ -9,6 +9,10 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
+// Signal to the app that we are running under tests (e.g. so the /text route
+// does not write to the developer's real clipboard).
+process.env.SHARING_TEST = '1';
+
 const utils = require('../bin/utils');
 const config = require('../bin/config');
 const app = require('../bin/app');
@@ -154,6 +158,23 @@ function postMultipart(port, urlPath, parts) {
         const req = http.request({
             hostname: '127.0.0.1', port: port, path: urlPath, method: 'POST',
             headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length },
+        }, (res) => {
+            let data = '';
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => resolve({ status: res.statusCode, data: data }));
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+function postJson(port, urlPath, obj) {
+    return new Promise((resolve, reject) => {
+        const body = Buffer.from(JSON.stringify(obj), 'utf8');
+        const req = http.request({
+            hostname: '127.0.0.1', port: port, path: urlPath, method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': body.length },
         }, (res) => {
             let data = '';
             res.on('data', (c) => { data += c; });
@@ -684,6 +705,26 @@ async function integrationTests() {
                         assert.strictEqual(dl.data, 'secret clip text');
                         const share = await request('http://127.0.0.1:' + p + '/share/');
                         assert.strictEqual(share.status, 404, 'cwd must not be served');
+                        resolve();
+                    } catch (e) { reject(e); }
+                },
+            });
+            servers.push(server);
+        });
+    });
+
+    await asyncTest('text route accepts a snippet and rejects empty input', async () => {
+        const p = port + 23;
+        await new Promise((resolve, reject) => {
+            const server = app.start({
+                port: p, sharePath: tmpDir, receive: true, clipboard: false,
+                updateClipboardData: null, postUploadRedirectUrl: '', shareAddress: '',
+                onStart: async () => {
+                    try {
+                        const res = await postJson(p, '/text', { text: 'hello from a test (not your clipboard)' });
+                        assert.strictEqual(res.status, 200);
+                        const empty = await postJson(p, '/text', { text: '' });
+                        assert.strictEqual(empty.status, 400);
                         resolve();
                     } catch (e) { reject(e); }
                 },

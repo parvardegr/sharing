@@ -90,6 +90,39 @@
             margin-top: 8px;
             color: #181818;
         }
+
+        #text-panel {
+            width: 80%;
+            max-width: 500px;
+            margin-top: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #text-input {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 80px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 16px;
+            border: 3px solid #181818;
+            border-radius: 6px;
+            resize: vertical;
+        }
+
+        #send-text {
+            font-family: monospace;
+            font-weight: bolder;
+            font-size: 18px;
+            color: #181818;
+            background-color: #fff;
+            border: 3px solid #181818;
+            border-radius: 6px;
+            padding: 10px;
+            cursor: pointer;
+        }
     </style>
 
     <body>
@@ -104,6 +137,11 @@
             <div id="hint">Tap to choose, or drag &amp; drop files here</div>
             <a href="{shareAddress}" target="_blank">View directory📁</a>
             <input id="file-input" type="file" name="selected" multiple style="visibility:hidden; display:none;"/>
+
+            <div id="text-panel">
+                <textarea id="text-input" placeholder="…or send a note / link to the computer"></textarea>
+                <button type="button" id="send-text">Send text ✉️</button>
+            </div>
         </form>
         <div id="progress-container">
             <div id="progress-bar-bg">
@@ -188,6 +226,31 @@
                 uploadFiles(e.dataTransfer.files);
             }
         });
+
+        // Send a text snippet back to the terminal.
+        var textInput = document.getElementById("text-input");
+        var sendText = document.getElementById("send-text");
+        sendText.onclick = function () {
+            var text = textInput.value;
+            if (!text) return;
+            sendText.innerText = "Sending…";
+            fetch("/text", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: text })
+            }).then(function (r) {
+                if (r.ok) {
+                    sendText.innerText = "Sent! ✅";
+                    textInput.value = "";
+                } else {
+                    sendText.innerText = "Failed ❌";
+                }
+                setTimeout(function () { sendText.innerText = "Send text ✉️"; }, 1500);
+            }).catch(function () {
+                sendText.innerText = "Failed ❌";
+                setTimeout(function () { sendText.innerText = "Send text ✉️"; }, 1500);
+            });
+        };
     </script>
 
 </html>

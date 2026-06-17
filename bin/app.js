@@ -51,6 +51,12 @@ const escapeHtml = (s) =>
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
+// Strip terminal control characters (except tab/newline/carriage-return) so that
+// text submitted from a phone cannot inject escape sequences into the terminal.
+// eslint-disable-next-line no-control-regex
+const stripControlChars = (s) =>
+    String(s).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
 // Resolve a destination for an uploaded file using only its basename (any path
 // components in the supplied name are discarded, so a crafted "../" name cannot
 // escape the share directory). Never overwrites an existing file, never reuses a
@@ -224,6 +230,26 @@ const start = ({
                 .catch((err) => {
                     res.status(500).send(err.message || String(err));
                 });
+        });
+
+        // Receive a short text/URL snippet from the phone: print it (sanitised) and
+        // best-effort copy it to the host clipboard.
+        app.post('/text', express.json({ limit: '5mb' }), express.urlencoded({ extended: false, limit: '5mb' }), (req, res) => {
+            const text = (req.body && (req.body.text != null ? req.body.text : '')) || '';
+            if (!String(text).length) return res.status(400).type('text').send('No text received.');
+            const clean = stripControlChars(text);
+            console.log('\nText received from device:\n' + clean + '\n');
+            // Best-effort copy to the host clipboard (skipped under tests so the
+            // suite never clobbers the developer's clipboard).
+            if (!process.env.SHARING_TEST) {
+                try {
+                    const clipboardy = require('clipboardy');
+                    clipboardy.writeSync(String(text));
+                    console.log('(copied to this computer\'s clipboard)');
+                } catch (e) { /* best-effort only */ }
+            }
+            res.type('text').send('Text received.');
+            finishOnce('text');
         });
     }
 
