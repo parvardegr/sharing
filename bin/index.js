@@ -267,7 +267,8 @@ const openBrowser = (url) => {
     const uploadAddress = baseUrl + '/receive';
     const file = fileName ? encodeURIComponent(fileName) : '';
     const shareAddress = clipboardText ? (baseUrl + clipboardPrefix) : (baseUrl + sharePrefix + '/' + file);
-    const qrPageUrl = baseUrl + '/qr';
+    const qrPrefix = '/qr' + (token ? '/' + token : '');
+    const qrPageUrl = baseUrl + qrPrefix;
 
     const timeoutMs = utils.parseDuration(options.timeout);
     if (options.timeout != null && timeoutMs == null) {
@@ -340,7 +341,7 @@ const openBrowser = (url) => {
         console.log('\nPress ctrl+c to stop sharing\n');
 
         if (options.open) {
-            openBrowser(protocol + '://localhost:' + options.port + '/qr');
+            openBrowser(protocol + '://localhost:' + options.port + qrPrefix);
         }
     };
 

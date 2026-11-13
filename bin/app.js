@@ -126,6 +126,7 @@ const start = ({
     const sharePrefix = '/share' + (token ? '/' + token : '');
     const clipboardPrefix = '/clipboard' + (token ? '/' + token : '');
     const zipPrefix = '/zip' + (token ? '/' + token : '');
+    const qrPrefix = '/qr' + (token ? '/' + token : '');
 
     // Basic Auth
     if (config.auth.username && config.auth.password) {
@@ -153,7 +154,7 @@ const start = ({
 
     // QR fallback page: renders the share (and upload) URL as a scannable image,
     // for terminals that cannot draw the QR (Windows native terminal, unicode paths).
-    app.get('/qr', async (req, res) => {
+    app.get(qrPrefix, async (req, res) => {
         let QRCode;
         try {
             QRCode = require('qrcode');
